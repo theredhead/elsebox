@@ -1,0 +1,17 @@
+{
+  "source": "https://github.com/Droid-VM/gunyah-guest-drivers-windows",
+  "auditedSourceCommit": "9922545ee7c65927e720c3c12b39cd8ae144e90b",
+  "download": "https://github.com/Droid-VM/gunyah-guest-drivers-windows/releases/download/dev/gunyah-arm64-drivers.zip",
+  "archiveSHA256": "207d566ca39894eee7a811a1ff92e6e8826260a810e337c3bb88b1bec908d716",
+  "files": {
+    "viosnd.inf": "71c333ecaad1a29beff07b66aeaa5efe2ed6c0f83f782c3eda6a6230e4552989",
+    "viosnd.sys": "ab0116d2001dbdfec61599b43b393c27f9d1d127d66e5e4fbb71c95ae4ac0c8b",
+    "viosnd.cat": "f78f901ea9793296b500c324c21c6483d1c75078fdd0accd4d8b9c85e526fd98"
+  },
+  "signature": "DroidVM Test (self signed; not Microsoft production signed)",
+  "releaseTagObject": {
+    "sha": "9922545ee7c65927e720c3c12b39cd8ae144e90b",
+    "type": "commit",
+    "url": "https://api.github.com/repos/Droid-VM/gunyah-guest-drivers-windows/git/commits/9922545ee7c65927e720c3c12b39cd8ae144e90b"
+  }
+}

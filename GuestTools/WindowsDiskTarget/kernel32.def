@@ -1,0 +1,11 @@
+LIBRARY KERNEL32.dll
+EXPORTS
+CreateFileW
+DeviceIoControl
+ReadFile
+SetFilePointerEx
+CloseHandle
+GetStdHandle
+WriteFile
+ExitProcess
+GetLastError
