@@ -2,6 +2,8 @@
 set -eu
 cd "${0:A:h:h}"
 mkdir -p build/ModuleCache
+python3 scripts/check-bundled-drivers.py
+python3 scripts/check-windows-provisioning.py
 xcrun swift-format lint --strict --configuration .swift-format --recursive Sources Tests scripts/HelperAppLifecycle.swift
 swiftlint lint --strict --config .swiftlint.yml --no-cache
 xcrun clang -Wall -Wextra -Werror GuestTools/WindowsDiskTarget/policy-checks.c -o build/DiskTargetChecks
@@ -13,6 +15,8 @@ for check_name in SettingsChecks LibraryChecks WindowsSetupChecks; do
 done
 xcrun swiftc -module-cache-path build/ModuleCache "${model_sources[@]}" Sources/InstallerCatalog.swift Sources/InstallerTransport.swift Sources/InstallerMediaService.swift Sources/WindowsInstallerResolver.swift Tests/InstallerChecks.swift -o build/InstallerChecks
 build/InstallerChecks
+xcrun swiftc -module-cache-path build/ModuleCache "${model_sources[@]}" Sources/InstallerCatalog.swift Sources/InstallerTransport.swift Sources/InstallerMediaService.swift Sources/WindowsInstallerResolver.swift Sources/InstallerPreparation.swift Tests/PreparationChecks.swift -o build/PreparationChecks
+build/PreparationChecks
 xcrun swiftc -module-cache-path build/ModuleCache "${model_sources[@]}" Sources/EFIVMConfiguration.swift Sources/VMAudioConfiguration.swift Sources/WindowsBootMedia.swift Tests/GuestConfigurationChecks.swift -o build/GuestConfigurationChecks
 codesign --force --sign - --entitlements VirtualMac.entitlements build/GuestConfigurationChecks
 build/GuestConfigurationChecks
@@ -22,6 +26,10 @@ xcrun swiftc -module-cache-path build/ModuleCache Sources/DisplayLayout.swift Te
 build/DisplayLayoutChecks
 xcrun swiftc -module-cache-path build/ModuleCache Sources/VMActivity.swift Tests/ActivityChecks.swift -o build/ActivityChecks
 build/ActivityChecks
+xcrun swiftc -module-cache-path build/ModuleCache Sources/VMActivity.swift Sources/VMLibraryActivity.swift Sources/VMLibraryStorage.swift Sources/InstallerMediaInventory.swift Sources/RecentDiskImages.swift Tests/LibraryOverviewChecks.swift -o build/LibraryOverviewChecks
+build/LibraryOverviewChecks
+xcrun swiftc -module-cache-path build/ModuleCache Sources/VMNetworkAddresses.swift Tests/NetworkAddressChecks.swift -o build/NetworkAddressChecks
+build/NetworkAddressChecks
 for bootstrap_script in Resources/WindowsBootstrap/*.sh; do
     zsh -n "$bootstrap_script"
 done

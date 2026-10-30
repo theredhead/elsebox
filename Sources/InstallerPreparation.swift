@@ -1,36 +1,108 @@
 import Foundation
 
-/// Coordinates media preparation and the final atomic settings save for app UI callers.
+struct InstallerPreparationState {
+    var message: String
+    var fraction: Double?
+    var active: Bool
+    var failed = false
+}
+
+/// Owns per-VM background work; only media results are merged into the latest saved settings.
 @MainActor
 enum InstallerPreparation {
+    private final class Job {
+        var state = InstallerPreparationState(message: "Preparing installer…", active: true)
+        var task: Task<Void, Error>?
+    }
+    private static var jobs: [UUID: Job] = [:]
+    static var stateDidChange: (() -> Void)?
+    static var progressDidChange: (() -> Void)?
+
+    static func state(for id: UUID) -> InstallerPreparationState? { jobs[id]?.state }
+    static func isPreparing(_ id: UUID) -> Bool { jobs[id]?.state.active == true }
+    static var hasActiveDownloads: Bool { jobs.values.contains { $0.state.active } }
+
+    static func canStart(bundle: VMBundle) -> Bool {
+        guard !isPreparing(bundle.id), let settings = try? bundle.resolvedSettings() else { return false }
+        return !InstallerMediaService.needsDownload(bundle: bundle, settings: settings)
+    }
+
+    static func begin(
+        bundle: VMBundle, settings: Resources, service: InstallerMediaService = InstallerMediaService()
+    ) throws {
+        // Commit edits now; download completion must never restore an older CPU/RAM/etc. snapshot.
+        try bundle.save(settings)
+        if isPreparing(bundle.id) {
+            stateDidChange?()
+            return
+        }
+        guard InstallerMediaService.needsDownload(bundle: bundle, settings: try bundle.resolvedSettings())
+        else {
+            jobs[bundle.id] = nil
+            stateDidChange?()
+            return
+        }
+        let job = Job()
+        jobs[bundle.id] = job
+        job.task = Task {
+            do {
+                while true {
+                    let requested = try bundle.resolvedSettings()
+                    let ready: Resources
+                    do {
+                        ready = try await service.prepare(bundle: bundle, settings: requested) {
+                            message, fraction in
+                            Task { @MainActor in
+                                guard job.state.active else { return }
+                                job.state.message = message
+                                job.state.fraction = fraction
+                                progressDidChange?()
+                            }
+                        }
+                    } catch {
+                        try Task.checkCancellation()
+                        if !sameRequest(requested, try bundle.resolvedSettings()) { continue }
+                        throw error
+                    }
+                    try Task.checkCancellation()
+                    var latest = try bundle.resolvedSettings()
+                    // Changed culture/media/disk: prepare the newest request before enabling power.
+                    guard sameRequest(requested, latest) else { continue }
+                    latest.restoreImagePath = ready.restoreImagePath
+                    latest.installationMediaPath = ready.installationMediaPath
+                    latest.driverMediaPath = ready.driverMediaPath
+                    latest.bootFromInstaller = ready.bootFromInstaller
+                    try bundle.save(latest)
+                    job.state = InstallerPreparationState(message: "Ready", fraction: 1, active: false)
+                    stateDidChange?()
+                    return
+                }
+            } catch {
+                job.state = InstallerPreparationState(
+                    message: error is CancellationError ? "Download cancelled" : error.localizedDescription,
+                    active: false, failed: true)
+                stateDidChange?()
+                throw error
+            }
+        }
+        stateDidChange?()
+    }
+
+    static func cancel(_ id: UUID) { jobs[id]?.task?.cancel() }
+
     @discardableResult
     static func save(bundle: VMBundle, settings: Resources) async throws -> Resources {
-        let imports =
-            [settings.restoreImagePath, settings.installationMediaPath, settings.driverMediaPath].compactMap {
-                $0
-            }
-            .contains { bundle.mediaCache.reference(for: URL(fileURLWithPath: $0)) == nil }
-            || settings.diskPath.map { !bundle.contains(URL(fileURLWithPath: $0)) } == true
-        let panel =
-            InstallerMediaService.needsDownload(bundle: bundle, settings: settings) || imports
-            ? InstallerProgressController(name: bundle.name) : nil
-        panel?.show()
-        defer { panel?.close() }
-        let task = Task {
-            let ready = try await InstallerMediaService().prepare(bundle: bundle, settings: settings) {
-                message, fraction in
-                Task { @MainActor in panel?.update(message, fraction: fraction) }
-            }
-            try Task.checkCancellation()
-            panel?.beginSaving()
-            try await Task.detached(priority: .userInitiated) { try bundle.save(ready) }.value
-            return try bundle.resolvedSettings()
-        }
-        panel?.onCancel = { task.cancel() }
-        return try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
-            task.cancel()
-        }
+        try begin(bundle: bundle, settings: settings)
+        if let task = jobs[bundle.id]?.task { try await task.value }
+        return try bundle.resolvedSettings()
+    }
+
+    private static func sameRequest(_ lhs: Resources, _ rhs: Resources) -> Bool {
+        lhs.diskPath == rhs.diskPath && lhs.restoreImagePath == rhs.restoreImagePath
+            && lhs.installationMediaPath == rhs.installationMediaPath
+            && lhs.driverMediaPath == rhs.driverMediaPath
+            && lhs.bootFromInstaller == rhs.bootFromInstaller
+            && lhs.windowsCulture == rhs.windowsCulture
+            && lhs.automaticWindowsDrivers == rhs.automaticWindowsDrivers
     }
 }

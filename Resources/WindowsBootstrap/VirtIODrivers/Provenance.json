@@ -1,0 +1,30 @@
+{
+  "version": "0.1.302",
+  "source": "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso",
+  "sourceISOsha256": "303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d",
+  "upstreamSource": "https://github.com/virtio-win/kvm-guest-drivers-windows",
+  "architecture": "ARM64",
+  "packages": [
+    "viogpudo",
+    "NetKVM",
+    "viostor"
+  ],
+  "files": {
+    "LICENSE.txt": "accd84cb35eff899d619ff40e6fea8074305cdf0e7191db71a5d9c3a015e3b02",
+    "NetKVM/netkvm.cat": "c5fa8b6790e9c0dac8fd8848c617292230ecaba29a03cf1ad25bdf243970a722",
+    "NetKVM/Readme.md": "b2eae8d3d3b488f14e481cc09e9297c841930fde9d6d0f7b3c5520ec49ada7ed",
+    "NetKVM/netkvm.sys": "118e6c7cad6f09b406f2b58dc9592ccbe1e803e751e5577b66ac180dbeacaabb",
+    "NetKVM/netkvm.inf": "4b56c2e399c5b1943a1e8bae5b4907ca06ebc76053df5cfdc628bcf68fa371fd",
+    "NetKVM/netkvmp.exe": "6abd66a785e0edd00ce91c09b207d3e67f5567d32cadd44c7d3363a9b1381a37",
+    "NetKVM/netkvmco.exe": "ba1be928cbb05e57299c99f9d15be7c09fb754d2f096a74b806aa8a7bffa8fa8",
+    "viostor/viostor.cat": "9264ff0e8069c82041e018420f198d257f760d70d55ac2be95b3bd49091468d9",
+    "viostor/viostor.inf": "a9005e9b3affdb161df22e1f9c6db0433c6f48b765fe8ba71e7915adb86238bb",
+    "viostor/viostor.sys": "a1cabcb4fdea38edc47e3b7f9414bd3cfe248f4c2ad2c38844201cf10b4cfec8",
+    "viogpudo/viogpudo.inf": "849cfefa9364b4a3e80dd44ce898e3b4766af5c4a475ea0a95ddb4c9f1cb2e4b",
+    "viogpudo/viogpudo.sys": "78bf0afc614a19c365a050e96e0d0274def2ac860e842cc0964795bf431a14b7",
+    "viogpudo/viogpuap.exe": "6aa7e950721299d9303651030ff72ef8e10adbfc5077bcc333b8416fb3ef7f35",
+    "viogpudo/vgpusrv.exe": "f85b5cc9b92d76b7f66060217b7bbafe7a3a72fc01e892e175baa6fa867cce3e",
+    "viogpudo/viogpudo.cat": "15a9b4664470602ab20efe1d665dc98d5fe0337e32038bc51369ecc0ca4826d2",
+    "viogpudo/viogpures.exe": "f5ed8835069cb0ebce2c3a07d919019040671f8ff08fd4248574cb924c5cf6a8"
+  }
+}

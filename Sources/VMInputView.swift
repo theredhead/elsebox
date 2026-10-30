@@ -5,9 +5,39 @@ import Virtualization
 @MainActor
 final class VMInputView: VZVirtualMachineView {
     // Set from the running VM's configuration, not from subsequently edited preferences.
+    var canMountImages: (() -> Bool)?
+    var mountImages: (([URL]) -> Bool)?
     var usesUSBMouse = true
     var viewportDidChange: (() -> Void)?
     private var previousViewportSize = CGSize.zero
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([.fileURL])
+    }
+
+    private func droppedURLs(_ sender: NSDraggingInfo) -> [URL] {
+        (sender.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? [])
+            .filter { ["iso", "img", "raw"].contains($0.pathExtension.lowercased()) }
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        canMountImages?() == true && !droppedURLs(sender).isEmpty ? .copy : []
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        canMountImages?() == true && !droppedURLs(sender).isEmpty
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        mountImages?(droppedURLs(sender)) ?? false
+    }
 
     override func layout() {
         super.layout()

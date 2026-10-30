@@ -1,10 +1,11 @@
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $options = Get-Content (Join-Path $root 'Options.json') -Raw | ConvertFrom-Json
-function Set-Policy([string]$Path, [string]$Name, [int]$Value) {
-    New-Item -Path $Path -Force | Out-Null
-    New-ItemProperty -Path $Path -Name $Name -PropertyType DWord -Value $Value -Force | Out-Null
-}
+. (Join-Path $root 'RegistryPolicy.ps1')
+$logs = Join-Path $env:ProgramData 'VirtualMac\Logs'
+New-Item -Path $logs -ItemType Directory -Force | Out-Null
+Start-Transcript -Path (Join-Path $logs 'Provisioning.log') -Append | Out-Null
+try {
 # Windows Pro supports Required diagnostic data; do not claim the Enterprise-only zero level.
 Set-Policy 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'AllowTelemetry' 1
 Set-Policy 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection' 'DoNotShowFeedbackNotifications' 1
@@ -40,4 +41,8 @@ if ($options.enableAudio) {
     }
     & pnputil.exe /add-driver (Join-Path $root 'viosnd.inf') /install
     if ($LASTEXITCODE -notin @(0,3010)) { throw "Audio driver installation failed: $LASTEXITCODE" }
+}
+
+} finally {
+    Stop-Transcript | Out-Null
 }

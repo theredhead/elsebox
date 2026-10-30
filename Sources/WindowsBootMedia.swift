@@ -101,20 +101,23 @@ enum WindowsBootMedia {
         if !FileManager.default.fileExists(atPath: target.path) {
             try HostFileOperations.copyPreservingAllocation(from: source, to: target)
         }
+        let bundled = resources.automaticWindowsDrivers == true
         let driverKey =
-            resources.driverMediaPath.map {
+            bundled
+            ? "bundled-virtio-0.1.302"
+            : resources.driverMediaPath.map {
                 URL(fileURLWithPath: $0).deletingLastPathComponent().lastPathComponent
             } ?? "missing"
-        let marker = bundle.url.appendingPathComponent("WindowsPE-v12-\(driverKey).ready")
+        let marker = bundle.url.appendingPathComponent("WindowsPE-v13-\(driverKey).ready")
         if !FileManager.default.fileExists(atPath: marker.path) {
-            guard let driverPath = resources.driverMediaPath,
-                let root = Bundle.main.resourceURL?.appendingPathComponent("WindowsBootstrap")
-            else { throw settingsError("Windows WinPE requires the ARM64 driver ISO.") }
+            guard let root = Bundle.main.resourceURL?.appendingPathComponent("WindowsBootstrap"),
+                let driverSource = bundled ? "bundled" : resources.driverMediaPath
+            else { throw settingsError("Use the bundled Windows drivers or select a driver ISO.") }
             try await Task.detached(priority: .userInitiated) {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: "/bin/zsh")
                 process.arguments = [
-                    root.appendingPathComponent("prepare-pe.sh").path, target.path, driverPath, root.path,
+                    root.appendingPathComponent("prepare-pe.sh").path, target.path, driverSource, root.path,
                 ]
                 let errors = Pipe()
                 process.standardError = errors
@@ -126,7 +129,7 @@ enum WindowsBootMedia {
                     throw settingsError("Preparing WinPE failed: \(String(decoding: output, as: UTF8.self))")
                 }
             }.value
-            try Data("12".utf8).write(to: marker, options: .atomic)
+            try Data("13".utf8).write(to: marker, options: .atomic)
         }
         if resources.windowsUnattended == true {
             try await prepareUnattended(bundle: bundle, resources: resources, image: target)
@@ -140,7 +143,9 @@ enum WindowsBootMedia {
             let root = Bundle.main.resourceURL?.appendingPathComponent("WindowsBootstrap")
         else { throw settingsError("Windows automatic setup is incomplete. Create a new Windows VM.") }
         let password = try WindowsSetupSecret.read(for: bundle.id)
-        let answer = try WindowsAnswerFile.make(username: username, password: password, culture: culture)
+        let answer = try WindowsAnswerFile.make(
+            username: username, password: password, culture: culture,
+            enableRDP: resources.windowsEnableRDP == true)
         let temporary = FileManager.default.temporaryDirectory.appendingPathComponent(
             "WindowsSetup-\(UUID().uuidString)")
         try FileManager.default.createDirectory(
@@ -156,7 +161,7 @@ enum WindowsBootMedia {
         ]
         try JSONSerialization.data(withJSONObject: options).write(
             to: temporary.appendingPathComponent("Options.json"))
-        for name in ["Prepare-Windows.ps1", "Finalize-Windows.ps1"] {
+        for name in ["Prepare-Windows.ps1", "Finalize-Windows.ps1", "RegistryPolicy.ps1"] {
             try FileManager.default.copyItem(
                 at: root.appendingPathComponent(name), to: temporary.appendingPathComponent(name))
         }

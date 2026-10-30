@@ -1,0 +1,7 @@
+{
+  "image": "GuestTools.iso",
+  "sha256": "e07ed0072a3322cf34fbb0d0f78f68749d1626d18bbb48abc351481a34ef136e",
+  "contents": "Verified DroidVM ARM64 viosnd driver, test certificate, license, provenance and lab setup scripts",
+  "driverProvenance": "AudioDrivers/Provenance.json",
+  "driverSHA256": "ab0116d2001dbdfec61599b43b393c27f9d1d127d66e5e4fbb71c95ae4ac0c8b"
+}

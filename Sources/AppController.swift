@@ -14,10 +14,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
     private var entireDisplayItem: NSMenuItem!
     private var nativeFullScreenItem: NSMenuItem!
     private var disksItem: NSMenuItem!
+    private var devicesItem: NSMenuItem!
     private var working = false
     private var registryReady = false
     private var pendingOpenURLs: [URL] = []
-    private var preparingBundleID: UUID?
+    private var iconAppliedURLs: Set<URL> = []
 
     init(library: VMLibrary = VMLibrary()) {
         self.library = library
@@ -38,6 +39,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
                 && NSRunningApplication.runningApplications(withBundleIdentifier: "nl.theredhead.virtualmac")
                     .contains { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
             if !otherInstance {
+                try? BundledGuestTools.removeLegacyCacheCopy(
+                    cache: library.mediaCache, machines: library.machines)
                 migratePreviousVM()
             } else {
                 libraryWindow.setMessage(
@@ -45,22 +48,122 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
                 openPendingBundles()
             }
             reload()
+            if !otherInstance { resumeDownloads() }
         } catch { report(error) }
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        NSApp.applicationIconImage = applicationIcon
+    }
+
+    private var applicationIcon: NSImage? {
+        guard let resources = Bundle.main.resourceURL else { return nil }
+        return NSImage(contentsOf: resources.appendingPathComponent("AppIcon.icns"))
+    }
+
+    @objc private func showAbout(_ sender: Any?) {
+        var options: [NSApplication.AboutPanelOptionKey: Any] = [
+            NSApplication.AboutPanelOptionKey(rawValue: "Copyright"): "Copyright © theredhead 2026"
+        ]
+        if let icon = applicationIcon { options[.applicationIcon] = icon }
+        NSApp.orderFrontStandardAboutPanel(options: options)
+    }
+
+    private func resumeDownloads() {
+        for bundle in library.machines where bundle.distribution.hasAutomaticInstaller {
+            do {
+                let settings = try bundle.resolvedSettings()
+                if InstallerPreparation.state(for: bundle.id) == nil,
+                    InstallerMediaService.needsDownload(bundle: bundle, settings: settings)
+                {
+                    try InstallerPreparation.begin(bundle: bundle, settings: settings)
+                }
+            } catch { libraryWindow.setMessage(error.localizedDescription) }
+        }
+    }
+
     private func connectLibrary() {
+        InstallerPreparation.stateDidChange = { [weak self] in self?.reload() }
+        InstallerPreparation.progressDidChange = { [weak self] in self?.libraryWindow.refreshDetails() }
+        libraryWindow.downloadState = { InstallerPreparation.state(for: $0) }
+        libraryWindow.onDownloadAction = { [weak self] bundle in
+            if InstallerPreparation.isPreparing(bundle.id) {
+                InstallerPreparation.cancel(bundle.id)
+            } else {
+                do {
+                    try InstallerPreparation.begin(bundle: bundle, settings: bundle.resolvedSettings())
+                } catch { self?.report(error) }
+            }
+        }
+        libraryWindow.mediaURL = library.mediaCache.root
+        libraryWindow.networkInfo = { [weak self] id in
+            guard let self else { return (nil, false) }
+            if let session = self.sessions[id] { return (session.networkSnapshot, session.networkIsLive) }
+            guard let bundle = self.library.machines.first(where: { $0.id == id }) else {
+                return (nil, false)
+            }
+            return (VMNetworkSnapshot.read(from: bundle.url), false)
+        }
+        libraryWindow.removableMedia = { [weak self] id in
+            guard let self, let bundle = self.library.machines.first(where: { $0.id == id }) else {
+                return []
+            }
+            return self.sessions[id]?.removableMedia
+                ?? VMSessionController.configuredInstallationMedia(bundle: bundle, canEject: !self.working)
+        }
+        libraryWindow.canShutDown = { [weak self] in self?.sessions[$0]?.canShutDown == true }
+        libraryWindow.canForceStop = { [weak self] in self?.sessions[$0]?.canForceStop == true }
+        libraryWindow.onShutDown = { [weak self] in self?.sessions[$0.id]?.shutDown() }
+        libraryWindow.onForceStop = { [weak self] in self?.sessions[$0.id]?.forceStop() }
+        libraryWindow.onEjectMedia = { [weak self] bundle, id in
+            self?.session(for: bundle).ejectRemovableMedia(id: id)
+        }
+        libraryWindow.mediaCleanupRestriction = { [weak self] url in
+            guard let self else { return "Library unavailable" }
+            if self.working || InstallerPreparation.hasActiveDownloads
+                || self.sessions.values.contains(where: { $0.isPreparingMedia })
+            {
+                return "Media preparation in progress"
+            }
+            for bundle in self.library.machines {
+                guard let settings = try? bundle.resolvedSettings() else { return "VM settings unavailable" }
+                let paths = [
+                    settings.restoreImagePath, settings.installationMediaPath, settings.driverMediaPath,
+                ]
+                if paths.compactMap({ $0 }).contains(where: {
+                    URL(fileURLWithPath: $0).standardizedFileURL.resolvingSymlinksInPath()
+                        == url.standardizedFileURL.resolvingSymlinksInPath()
+                }) {
+                    return "Used by \(bundle.name)"
+                }
+            }
+            return nil
+        }
+        libraryWindow.overviewActivity = { [weak self] in
+            let running = self?.sessions.values.filter { $0.hasRunningGuest } ?? []
+            return VMLibraryActivityInput(
+                runningCount: running.count,
+                counters: running.compactMap { $0.activityCounters })
+        }
         libraryWindow.state = { [weak self] id in
-            if self?.preparingBundleID == id { return "Preparing media…" }
+            if InstallerPreparation.isPreparing(id) { return "Downloading…" }
+            if InstallerPreparation.state(for: id)?.failed == true { return "Download failed" }
             return self?.sessions[id]?.stateLabel ?? "Stopped"
         }
         libraryWindow.canStart = { [weak self] id in
-            !(self?.working ?? true) && (self?.sessions[id]?.canStart ?? true)
+            !(self?.working ?? true) && !InstallerPreparation.isPreparing(id)
+                && (self?.sessions[id]?.canStart ?? self?.library.machines.first(where: { $0.id == id })
+                    .map { InstallerPreparation.canStart(bundle: $0) } ?? false)
+        }
+        libraryWindow.canRemove = { [weak self] id in
+            !(self?.working ?? true) && !InstallerPreparation.isPreparing(id)
+                && self?.sessions[id]?.isActive != true
         }
         libraryWindow.canConfigure = { [weak self] id in
             !(self?.working ?? true) && (self?.sessions[id]?.canConfigure ?? true)
         }
         libraryWindow.onNew = { [weak self] in self?.newVM(nil) }
-        libraryWindow.onOpen = { [weak self] in self?.openVM(nil) }
+        libraryWindow.previewMachine = { [weak self] id in self?.sessions[id]?.previewMachine }
         libraryWindow.onStart = { [weak self] vm in
             guard let self, !self.working else { return }
             self.session(for: vm).startVirtualMachine()
@@ -85,8 +188,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
             session.closeWindow()
         }
         let session = VMSessionController(bundle: bundle)
-        session.libraryPreparing = preparingBundleID == bundle.id
         sessions[bundle.id] = session
+        session.networkDidChange = { [weak self] in self?.libraryWindow.refreshDetails() }
         session.stateDidChange = { [weak self] in self?.reload() }
         session.didActivate = { [weak self, weak session] in
             self?.activeSession = session
@@ -114,6 +217,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
             return item
         }
         let app = submenu("VirtualMac")
+        let about = app.addItem(
+            withTitle: "About VirtualMac", action: #selector(showAbout(_:)),
+            keyEquivalent: "")
+        about.target = self
+        app.addItem(.separator())
         _ = add("Configure Virtual Machine…", #selector(configureVM(_:)), ",", to: app)
         app.addItem(.separator())
         app.addItem(
@@ -130,11 +238,32 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
         nativeFullScreenItem.keyEquivalentModifierMask = [.control, .command]
         let vm = submenu("Virtual Machine")
         startItem = add("Start Virtual Machine", #selector(startVM(_:)), "r", to: vm)
+        let headless = add("Start Headless", #selector(startHeadlessVM(_:)), "r", to: vm)
+        headless.keyEquivalentModifierMask = [.option, .command]
+        _ = add("Shut Down", #selector(shutDownVM(_:)), to: vm)
+        _ = add("Force Stop…", #selector(forceStopVM(_:)), to: vm)
+        vm.addItem(.separator())
         configureItem = add("Configure…", #selector(configureVM(_:)), to: vm)
         _ = add("Boot from Startup Disk", #selector(bootFromDisk(_:)), to: vm)
         let devices = submenu("Devices")
+        devicesItem = menu.items.last
         disksItem = NSMenuItem(title: "Disks", action: nil, keyEquivalent: "")
         devices.addItem(disksItem)
+        let windows = submenu("Window")
+        let minimize = windows.addItem(
+            withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        minimize.target = nil
+        let zoom = windows.addItem(
+            withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
+        zoom.target = nil
+        windows.addItem(.separator())
+        _ = add("VM Library", #selector(showLibrary(_:)), "0", to: windows)
+        windows.addItem(.separator())
+        let bringAll = windows.addItem(
+            withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)),
+            keyEquivalent: "")
+        bringAll.target = nil
+        NSApp.windowsMenu = windows
         NSApp.mainMenu = menu
         updateMenus()
     }
@@ -144,27 +273,23 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
         entireDisplayItem.state = activeSession?.entireDisplay == true ? .on : .off
         nativeFullScreenItem.title =
             activeSession?.nativeFullScreen == true ? "Exit Full Screen" : "Enter Full Screen"
-        if let activeSession {
-            disksItem.submenu = activeSession.disksMenu
-        } else {
-            let menu = NSMenu(title: "Disks")
-            let hint = menu.addItem(
-                withTitle: "Open a VM window to manage its disks", action: nil, keyEquivalent: "")
-            hint.isEnabled = false
-            disksItem.submenu = menu
-        }
+        let runningSession = activeSession.flatMap { $0.hasRunningGuest ? $0 : nil }
+        devicesItem.isHidden = runningSession == nil
+        disksItem.submenu = runningSession?.disksMenu
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         switch menuItem.action {
+        case #selector(shutDownVM(_:)): return menuSession?.canShutDown == true
+        case #selector(forceStopVM(_:)): return menuSession?.canForceStop == true
         case #selector(toggleStatus(_:)):
             return activeSession?.canConfigure == true
         case #selector(toggleEntireDisplay(_:)), #selector(toggleFullScreen(_:)):
             return activeSession != nil
-        case #selector(startVM(_:)):
+        case #selector(startVM(_:)), #selector(startHeadlessVM(_:)):
             return !working
                 && (activeSession?.canStart ?? libraryWindow.selected.map {
-                    sessions[$0.id]?.canStart ?? true
+                    sessions[$0.id]?.canStart ?? InstallerPreparation.canStart(bundle: $0)
                 } ?? false)
         case #selector(configureVM(_:)):
             return !working
@@ -176,7 +301,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
                 return activeSession.bundle.distribution.usesEFI && activeSession.canStart
             }
             return libraryWindow.selected.map {
-                $0.distribution.usesEFI && (sessions[$0.id]?.canStart ?? true)
+                $0.distribution.usesEFI
+                    && (sessions[$0.id]?.canStart ?? InstallerPreparation.canStart(bundle: $0))
             } ?? false
         case #selector(newVM(_:)), #selector(openVM(_:)), #selector(importPreviousVM(_:)):
             return registryReady && !working
@@ -185,6 +311,13 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
     }
 
     private func reload(select id: UUID? = nil) {
+        if let icon = applicationIcon {
+            for machine in library.machines where !iconAppliedURLs.contains(machine.url) {
+                if NSWorkspace.shared.setIcon(icon, forFile: machine.url.path, options: []) {
+                    iconAppliedURLs.insert(machine.url)
+                }
+            }
+        }
         libraryWindow.reload(library.machines, select: id)
         updateMenus()
     }
@@ -208,6 +341,21 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
             session(for: vm).startVirtualMachine()
         }
     }
+    @objc private func startHeadlessVM(_ sender: Any?) {
+        guard !working else { return }
+        if let activeSession {
+            activeSession.startVirtualMachine(headless: true)
+        } else if let vm = libraryWindow.selected {
+            session(for: vm).startVirtualMachine(headless: true)
+        }
+    }
+
+    private var menuSession: VMSessionController? {
+        activeSession ?? libraryWindow.selected.flatMap { sessions[$0.id] }
+    }
+    @objc private func shutDownVM(_ sender: Any?) { menuSession?.shutDown() }
+    @objc private func forceStopVM(_ sender: Any?) { menuSession?.forceStop() }
+
     @objc private func configureVM(_ sender: Any?) {
         if let activeSession {
             activeSession.showPreferences()
@@ -292,35 +440,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
             _ = try library.register(bundle.url)
             libraryWindow.showWindow()
             reload(select: bundle.id)
-            working = true
-            preparingBundleID = bundle.id
-            reload(select: bundle.id)
-            Task {
-                defer {
-                    working = false
-                    preparingBundleID = nil
-                    sessions[bundle.id]?.libraryPreparing = false
-                    reload(select: bundle.id)
-                    openPendingBundles()
-                }
-                do {
-                    let lease = try VMLease(directory: bundle.url)
-                    defer { withExtendedLifetime(lease) {} }
-                    var settings = try bundle.resolvedSettings()
-                    if let localISO {
-                        settings.installationMediaPath = localISO.path
-                        settings.bootFromInstaller = true
-                    }
-                    try await InstallerPreparation.save(bundle: bundle, settings: settings)
-                    libraryWindow.setMessage("Created \(title).")
-                    session(for: bundle).showWindow()
-                } catch is CancellationError {
-                    libraryWindow.setMessage("Installer download cancelled.")
-                } catch {
-                    libraryWindow.setMessage("Installer download failed. Configure the VM to retry.")
-                    report(error)
-                }
+            var settings = try bundle.resolvedSettings()
+            if let localISO {
+                settings.installationMediaPath = localISO.path
+                settings.bootFromInstaller = true
             }
+            try InstallerPreparation.begin(bundle: bundle, settings: settings)
+            libraryWindow.setMessage("Created \(title).")
+            reload(select: bundle.id)
         } catch { report(error) }
     }
 
@@ -398,9 +525,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
                     try worker.migrateLegacyIfNeeded(from: root)
                 }.value
                 try library.load()
-                libraryWindow.setMessage(
-                    "VM Library"
-                )
+                libraryWindow.setMessage("")
             } catch {
                 libraryWindow.setMessage(
                     "Previous VM import deferred. Use File → Import Previous VM after shutting down the old VM."
@@ -411,18 +536,37 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuItemValidation
     }
 
     private func remove(_ bundle: VMBundle) {
-        guard !working, sessions[bundle.id]?.isActive != true else { return }
+        guard !working, !InstallerPreparation.isPreparing(bundle.id),
+            sessions[bundle.id]?.isActive != true
+        else { return }
+        let alert = NSAlert()
+        alert.messageText = "Are you sure you want to remove this VM?"
+        alert.informativeText = "\(bundle.name)\nDeleting files moves the .asvm bundle to Trash."
+        alert.addButton(withTitle: "Remove from list")
+        alert.addButton(withTitle: "Also delete files")
+        alert.buttons[1].hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn || response == .alertSecondButtonReturn else { return }
+        let deleteFiles = response == .alertSecondButtonReturn
         do {
+            if deleteFiles {
+                try FileManager.default.trashItem(at: bundle.url, resultingItemURL: nil)
+            }
             try library.remove(bundle.id)
             sessions.removeValue(forKey: bundle.id)?.closeWindow()
             libraryWindow.setMessage(
-                "Removed \(bundle.name) from the library. Its .asvm bundle is still on disk.")
+                deleteFiles
+                    ? "Moved \(bundle.name) to Trash."
+                    : "Removed \(bundle.name) from the library. Its .asvm bundle is still on disk.")
             reload()
         } catch { report(error) }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard !working, !sessions.values.contains(where: { $0.isActive }) else {
+        guard !working, !InstallerPreparation.hasActiveDownloads,
+            !sessions.values.contains(where: { $0.isActive })
+        else {
             report(
                 settingsError(
                     "Shut down all running guests and wait for VM operations to finish before quitting."))

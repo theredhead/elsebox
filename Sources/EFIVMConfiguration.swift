@@ -66,7 +66,9 @@ enum EFIVMConfiguration {
         } else {
             disks.append(VZVirtioBlockDeviceConfiguration(attachment: startupAttachment))
         }
-        if bundle.distribution == .windows, let path = resources.driverMediaPath {
+        if bundle.distribution == .windows, resources.bootFromInstaller != false,
+            resources.automaticWindowsDrivers != true, let path = resources.driverMediaPath
+        {
             let attachment = try VZDiskImageStorageDeviceAttachment(
                 url: URL(fileURLWithPath: path), readOnly: true)
             disks.append(VZVirtioBlockDeviceConfiguration(attachment: attachment))

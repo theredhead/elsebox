@@ -19,7 +19,7 @@ final class VMActivityView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    override var intrinsicContentSize: NSSize { return NSSize(width: 600, height: 28) }
+    override var intrinsicContentSize: NSSize { return NSSize(width: 234, height: 28) }
 
     func start(allocatedMemory: UInt64, sample: @escaping () -> VMActivityCounters?) {
         stop()
@@ -39,6 +39,7 @@ final class VMActivityView: NSView {
         history.reset()
         unavailable = false
         needsDisplay = true
+        toolTip = "VM activity: stopped"
         setAccessibilityLabel("VM activity: stopped")
     }
 
@@ -51,11 +52,16 @@ final class VMActivityView: NSView {
             history.reset()
         }
         if let latest = history.samples.last {
+            let values =
+                "CPU \(Int(latest.cpuPercent)) percent. Host RAM \(bytes(latest.footprintBytes)). Disk read \(bytes(latest.readBytesPerSecond)) per second, write \(bytes(latest.writeBytesPerSecond)) per second."
+            toolTip = values + "\nLast 2 minutes. CPU 100% is one host core; RAM is host-process footprint."
             setAccessibilityLabel(
                 "CPU \(Int(latest.cpuPercent)) percent. Host RAM \(bytes(latest.footprintBytes)). Disk read \(bytes(latest.readBytesPerSecond)) per second, write \(bytes(latest.writeBytesPerSecond)) per second."
             )
         } else {
-            setAccessibilityLabel(unavailable ? "VM activity counters unavailable" : "Collecting VM activity")
+            let message = unavailable ? "VM activity counters unavailable" : "Collecting VM activity"
+            toolTip = message
+            setAccessibilityLabel(message)
         }
         needsDisplay = true
     }
@@ -63,34 +69,28 @@ final class VMActivityView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard sample != nil else { return }
-        guard let latest = history.samples.last else {
-            drawText(unavailable ? "Activity unavailable" : "Collecting activity…", at: NSPoint(x: 4, y: 7))
-            return
+        let symbols = ["cpu", "memorychip", "internaldrive"]
+        for (index, symbol) in symbols.enumerated() {
+            let x = CGFloat(index) * 82
+            NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+                .withSymbolConfiguration(
+                    .init(paletteColors: [unavailable ? .tertiaryLabelColor : .secondaryLabelColor]))?
+                .draw(in: NSRect(x: x, y: 7, width: 14, height: 14))
         }
-        let firstColumn = bounds.width * 0.24
-        let secondColumn = bounds.width * 0.50
+        guard !history.samples.isEmpty else { return }
         let cpu = history.samples.map { $0.cpuPercent }
         let memory = history.samples.map { $0.footprintBytes }
         let reads = history.samples.map { $0.readBytesPerSecond }
         let writes = history.samples.map { $0.writeBytesPerSecond }
-        drawText("CPU \(Int(latest.cpuPercent))%", at: NSPoint(x: 4, y: 7))
         graph(
-            cpu, at: NSRect(x: firstColumn - 64, y: 4, width: 56, height: 20),
+            cpu, at: NSRect(x: 20, y: 4, width: 50, height: 20),
             maximum: max(100, cpu.max() ?? 0), color: .systemBlue)
-        drawText("RAM \(bytes(latest.footprintBytes))", at: NSPoint(x: firstColumn + 4, y: 7))
         graph(
-            memory, at: NSRect(x: secondColumn - 64, y: 4, width: 56, height: 20),
+            memory, at: NSRect(x: 102, y: 4, width: 50, height: 20),
             maximum: max(Double(allocatedMemory), memory.max() ?? 0), color: .systemPurple)
-        drawText(
-            "R \(bytes(latest.readBytesPerSecond))/s  W \(bytes(latest.writeBytesPerSecond))/s",
-            at: NSPoint(x: secondColumn + 4, y: 7))
         let maximum = max(1_048_576, max(reads.max() ?? 0, writes.max() ?? 0))
-        graph(
-            reads, at: NSRect(x: bounds.width - 64, y: 4, width: 56, height: 20), maximum: maximum,
-            color: .systemGreen)
-        graph(
-            writes, at: NSRect(x: bounds.width - 64, y: 4, width: 56, height: 20), maximum: maximum,
-            color: .systemOrange)
+        graph(reads, at: NSRect(x: 184, y: 4, width: 50, height: 20), maximum: maximum, color: .systemGreen)
+        graph(writes, at: NSRect(x: 184, y: 4, width: 50, height: 20), maximum: maximum, color: .systemOrange)
     }
 
     private func graph(_ values: [Double], at rect: NSRect, maximum: Double, color: NSColor) {
@@ -108,15 +108,6 @@ final class VMActivityView: NSView {
         line.lineWidth = 1.5
         color.setStroke()
         line.stroke()
-    }
-
-    private func drawText(_ text: String, at point: NSPoint) {
-        (text as NSString).draw(
-            at: point,
-            withAttributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular),
-                .foregroundColor: NSColor.secondaryLabelColor,
-            ])
     }
 
     private func bytes(_ value: Double) -> String {

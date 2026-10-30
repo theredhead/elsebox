@@ -11,15 +11,24 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
         labelWithString: "Stopped")
     private let statusBar = NSView()
     private let activityView = VMActivityView()
+    private lazy var networkMonitor = VMNetworkMonitor(bundleURL: bundle.url)
+    var networkDidChange: (() -> Void)?
+    var networkSnapshot: VMNetworkSnapshot? { networkMonitor.snapshot }
+    var networkIsLive: Bool { networkMonitor.isLive }
+    private lazy var thumbnails = VMThumbnailController(bundle: bundle)
     private var virtualMachine: VZVirtualMachine?
     private var installer: VZMacOSInstaller?
     private var busy = false
     private var configurationSaving = false
-    var libraryPreparing = false { didSet { if libraryPreparing != oldValue { notifyStateChanged() } } }
+    private var forceStopping = false
+    private var stopWasRequested = false
+    private var closeWhenStopped = false
+    private var libraryPreparing: Bool { InstallerPreparation.isPreparing(bundle.id) }
     private var vmBottomWithStatus: NSLayoutConstraint!
     private var vmBottomWithoutStatus: NSLayoutConstraint!
     private var disksController: AnyObject?
     private var activeBootDisk: URL?
+    private var activeInstallationMedia: URL?
     private var activeDisplayResources: Resources?
     private var displayResizeTask: Task<Void, Never>?
     private var usesEntireDisplay = false
@@ -40,16 +49,18 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
         self.bundle = bundle
         super.init()
         makeWindow()
+        networkMonitor.didChange = { [weak self] in self?.networkDidChange?() }
     }
 
     private var directory: URL { bundle.url }
     private func file(_ name: String) -> URL { directory.appendingPathComponent(name) }
     var isActive: Bool {
-        libraryPreparing || busy || configurationSaving || devicesBusy
+        forceStopping || libraryPreparing || busy || configurationSaving || devicesBusy
             || (virtualMachine != nil && virtualMachine?.state != .stopped && virtualMachine?.state != .error)
     }
     var stateLabel: String {
-        if busy { return "Preparing…" }
+        if forceStopping { return "Stopping…" }
+        if busy { return installer != nil ? "Installing macOS…" : "Preparing…" }
         if configurationSaving { return "Saving settings…" }
         switch virtualMachine?.state {
         case .running: return "Running"
@@ -58,39 +69,172 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
         default: return "Stopped"
         }
     }
+    var removableMedia: [VMRemovableMedium] {
+        if hasRunningGuest, #available(macOS 15.0, *),
+            let devices = disksController as? RemovableDisksController
+        {
+            return devices.connectedMedia
+        }
+        return Self.configuredInstallationMedia(bundle: bundle, canEject: canStart)
+    }
+
+    static func configuredInstallationMedia(bundle: VMBundle, canEject: Bool) -> [VMRemovableMedium] {
+        guard bundle.distribution.usesEFI, let settings = try? bundle.resolvedSettings(),
+            settings.bootFromInstaller != false, let path = settings.installationMediaPath
+        else { return [] }
+        return [
+            VMRemovableMedium(
+                id: "installation", name: URL(fileURLWithPath: path).lastPathComponent,
+                readOnly: true, isInstaller: true, canEject: canEject)
+        ]
+    }
+
+    func ejectRemovableMedia(id: String) {
+        if hasRunningGuest, #available(macOS 15.0, *),
+            let devices = disksController as? RemovableDisksController
+        {
+            devices.eject(id: id)
+        } else if canStart, id == "installation" {
+            do {
+                try releaseInstallationMedia()
+                notifyStateChanged()
+            } catch { NSAlert(error: error).runModal() }
+        }
+    }
+
+    var activityCounters: VMActivityCounters? {
+        guard let virtualMachine, virtualMachine.state == .running else { return nil }
+        return VMHostMetricsSource.read(virtualMachine)
+    }
+    var isPreparingMedia: Bool { busy || configurationSaving || libraryPreparing }
+    var hasRunningGuest: Bool { virtualMachine?.state == .running }
+    var previewMachine: VZVirtualMachine? {
+        guard let virtualMachine, virtualMachine.state == .running || virtualMachine.state == .paused else {
+            return nil
+        }
+        return virtualMachine
+    }
     var statusBarVisible: Bool { !statusBar.isHidden }
     var entireDisplay: Bool { usesEntireDisplay }
     var nativeFullScreen: Bool { window.styleMask.contains(.fullScreen) }
 
-    func showWindow() { window.makeKeyAndOrderFront(nil) }
+    private var opensVMWindowOnStart = true
+
+    func showWindow() {
+        opensVMWindowOnStart = true
+        window.makeKeyAndOrderFront(nil)
+    }
     func closeWindow() { window.close() }
-    var canConfigure: Bool { !libraryPreparing && !configurationSaving && !busy }
+    var canConfigure: Bool { !configurationSaving && !busy && !forceStopping }
+    var canShutDown: Bool { virtualMachine?.canRequestStop == true && !forceStopping }
+    var canForceStop: Bool { virtualMachine?.canStop == true && !forceStopping }
     func exitEntireDisplayIfNeeded() { if usesEntireDisplay { leaveEntireDisplay() } }
     func windowDidBecomeKey(_ notification: Notification) { didActivate?() }
     func windowShouldClose(_ sender: NSWindow) -> Bool {
-        guard !isActive else {
-            NSAlert(
-                error: failure(
-                    "Shut down this guest before closing its window. You can switch to the VM Library to use another VM."
-                )
-            ).runModal()
-            return false
+        guard isActive else {
+            exitEntireDisplayIfNeeded()
+            return true
         }
-        exitEntireDisplayIfNeeded()
-        return true
+        let alert = NSAlert()
+        alert.messageText = "Close \(bundle.name)?"
+        alert.informativeText = "Go headless to keep the VM running without its console window."
+        alert.addButton(withTitle: "Go Headless")
+        let shutdown = canShutDown ? alert.addButton(withTitle: "Shut Down") : nil
+        let force = canForceStop ? alert.addButton(withTitle: "Force Stop…") : nil
+        alert.addButton(withTitle: "Cancel")
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            opensVMWindowOnStart = false
+            exitEntireDisplayIfNeeded()
+            return true
+        }
+        let index = response.rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        guard alert.buttons.indices.contains(index) else { return false }
+        let selected = alert.buttons[index]
+        if selected === shutdown {
+            closeWhenStopped = true
+            shutDown()
+        } else if selected === force {
+            forceStop(closeAfterStopping: true)
+        }
+        return false
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        opensVMWindowOnStart = false
+    }
+
+    func shutDown() {
+        guard canShutDown, let virtualMachine else { return }
+        do {
+            try virtualMachine.requestStop()
+            stopWasRequested = true
+            status.stringValue = "Shutting down…"
+        } catch {
+            closeWhenStopped = false
+            NSAlert(error: error).runModal()
+        }
+    }
+
+    func forceStop(closeAfterStopping: Bool = false) {
+        guard canForceStop, let machine = virtualMachine else { return }
+        let alert = NSAlert()
+        alert.messageText = "Force stop \(bundle.name)?"
+        alert.informativeText =
+            "This turns off the virtual machine immediately. Unsaved guest changes may be lost."
+        alert.addButton(withTitle: "Force Stop")
+        alert.buttons[0].hasDestructiveAction = true
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        closeWhenStopped = closeAfterStopping
+        stopWasRequested = true
+        forceStopping = true
+        status.stringValue = "Stopping…"
+        notifyStateChanged()
+        updateDeviceMenu()
+        Task {
+            defer {
+                forceStopping = false
+                notifyStateChanged()
+                updateDeviceMenu()
+            }
+            do {
+                try await machine.stop()
+                networkMonitor.stop()
+                activityView.stop()
+                displayResizeTask?.cancel()
+                vmView.virtualMachine = nil
+                virtualMachine = nil
+                installer = nil
+                if !busy { lease = nil }
+                status.stringValue = "Stopped"
+            } catch {
+                closeWhenStopped = false
+                NSAlert(error: error).runModal()
+            }
+        }
     }
 
     var canStart: Bool {
-        !libraryPreparing && !busy && !configurationSaving && !devicesBusy
+        InstallerPreparation.canStart(bundle: bundle)
+            && !forceStopping && !libraryPreparing && !busy && !configurationSaving && !devicesBusy
             && (virtualMachine == nil || virtualMachine?.state == .stopped || virtualMachine?.state == .error)
     }
 
-    func startVirtualMachine(_ sender: Any? = nil) {
+    func startVirtualMachine(_ sender: Any? = nil, headless: Bool? = nil) {
         guard canStart else { return }
+        stopWasRequested = false
+        closeWhenStopped = false
         busy = true
         notifyStateChanged()
         updateDeviceMenu()
-        window.makeKeyAndOrderFront(nil)
+        let startsHeadless = headless ?? ((try? preferredResources())?.startHeadless ?? false)
+        opensVMWindowOnStart = !startsHeadless
+        if startsHeadless {
+            window.orderOut(nil)
+        } else {
+            showWindow()
+        }
         Task {
             defer {
                 busy = false
@@ -115,8 +259,12 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
             } catch {
                 activityView.stop()
                 installer = nil
-                status.stringValue = "Startup failed: \(error.localizedDescription)"
-                NSAlert(error: error).runModal()
+                if stopWasRequested {
+                    status.stringValue = "Stopped"
+                } else {
+                    status.stringValue = "Startup failed: \(error.localizedDescription)"
+                    NSAlert(error: error).runModal()
+                }
             }
         }
     }
@@ -140,21 +288,9 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
             while alert.runModal() == .alertFirstButtonReturn {
                 do {
                     let updated = try editor.settings()
-                    configurationSaving = true
+                    try InstallerPreparation.begin(bundle: bundle, settings: updated)
                     notifyStateChanged()
-                    let bundle = self.bundle
-                    Task {
-                        defer {
-                            configurationSaving = false
-                            notifyStateChanged()
-                            updateDeviceMenu()
-                        }
-                        do {
-                            try await InstallerPreparation.save(bundle: bundle, settings: updated)
-                        } catch is CancellationError {
-                            // Keep the previous saved configuration when preparation is cancelled.
-                        } catch { NSAlert(error: error).runModal() }
-                    }
+                    updateDeviceMenu()
                     break
                 } catch { NSAlert(error: error).runModal() }
             }
@@ -234,7 +370,11 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
                 self?.notifyStateChanged()
                 self?.updateDeviceMenu()
             }
+            controller.guestToolsURL = bundle.distribution == .windows ? BundledGuestTools.imageURL : nil
+            controller.installationMediaDidEject = { [weak self] in try self?.releaseInstallationMedia() }
             disksController = controller
+            vmView.canMountImages = { [weak controller] in controller?.canMountImages == true }
+            vmView.mountImages = { [weak controller] in controller?.mountDroppedImages($0) ?? false }
         } else {
             let item = disksMenu.addItem(
                 withTitle: "Live disks require macOS Sequoia 15 or later", action: nil, keyEquivalent: "")
@@ -267,7 +407,8 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
             statusBar.heightAnchor.constraint(equalToConstant: 28),
             status.leadingAnchor.constraint(equalTo: statusBar.leadingAnchor, constant: 12),
             status.centerYAnchor.constraint(equalTo: statusBar.centerYAnchor),
-            activityView.leadingAnchor.constraint(equalTo: status.trailingAnchor, constant: 12),
+            activityView.leadingAnchor.constraint(greaterThanOrEqualTo: status.trailingAnchor, constant: 12),
+            activityView.widthAnchor.constraint(equalToConstant: 234),
             activityView.trailingAnchor.constraint(equalTo: statusBar.trailingAnchor, constant: -12),
             activityView.topAnchor.constraint(equalTo: statusBar.topAnchor),
             activityView.bottomAnchor.constraint(equalTo: statusBar.bottomAnchor),
@@ -463,18 +604,16 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
                 bundle: bundle, resources: resources
             ).path
         }
+        activeInstallationMedia =
+            bundle.distribution.usesEFI && resources.bootFromInstaller != false
+            ? resources.installationMediaPath.map { URL(fileURLWithPath: $0) } : nil
         let configuration =
             try bundle.distribution.usesEFI
             ? EFIVMConfiguration.make(bundle: bundle, resources: resources)
             : makeConfiguration(resources: resources)
         try configuration.validate()
-        let machine = VZVirtualMachine(configuration: configuration)
-        machine.delegate = self
-        virtualMachine = machine
-        activityView.start(allocatedMemory: configuration.memorySize) { [weak machine] in
-            guard let machine, machine.state == .running || machine.state == .starting else { return nil }
-            return VMHostMetricsSource.read(machine)
-        }
+        var machine = VZVirtualMachine(configuration: configuration)
+        attachRuntime(machine, memorySize: configuration.memorySize)
         activeBootDisk = disk
         activeDisplayResources = resources
         updateDeviceMenu()
@@ -484,14 +623,45 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
             status.stringValue = "Installing macOS… This may take a while."
             let installation = VZMacOSInstaller(virtualMachine: machine, restoringFromImageAt: restoreURL)
             installer = installation
+            notifyStateChanged()
             try await installation.install()
             installer = nil
             try Data().write(to: metadata.appendingPathComponent("Installed"), options: .atomic)
+            try releaseInstallationMedia()
+            // The restore VM has its own shutdown lifecycle. Never reuse it for the first normal boot.
+            machine.delegate = nil
+            if machine.canStop { try await machine.stop() }
+            let deadline = Date().addingTimeInterval(30)
+            while machine.state == .stopping, Date() < deadline {
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+            guard machine.state == .stopped else {
+                throw failure(
+                    "macOS installation completed, but the installer VM has not stopped. Start this VM again to boot the installed system."
+                )
+            }
+            machine = VZVirtualMachine(configuration: configuration)
+            attachRuntime(machine, memorySize: configuration.memorySize)
+            notifyStateChanged()
         }
         status.stringValue = "Starting \(bundle.distribution.title)…"
         if machine.state == .stopped { try await machine.start() }
+        networkMonitor.start(macAddresses: configuration.networkDevices.map { $0.macAddress.string })
         status.stringValue = "\(bundle.distribution.title) — Running"
+        if !bundle.distribution.usesEFI || resources.bootFromInstaller == false {
+            try releaseInstallationMedia()
+        }
         scheduleDisplayFit()
+    }
+
+    private func attachRuntime(_ machine: VZVirtualMachine, memorySize: UInt64) {
+        machine.delegate = self
+        virtualMachine = machine
+        vmView.virtualMachine = machine
+        activityView.start(allocatedMemory: memorySize) { [weak machine] in
+            guard let machine, machine.state == .running || machine.state == .starting else { return nil }
+            return VMHostMetricsSource.read(machine)
+        }
     }
 
     private func restoreImageURL(resources: Resources) throws -> URL {
@@ -620,7 +790,9 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
     }
 
     func guestDidStop(_ virtualMachine: VZVirtualMachine) {
+        guard virtualMachine === self.virtualMachine else { return }
         displayResizeTask?.cancel()
+        networkMonitor.stop()
         activityView.stop()
         status.stringValue = "Stopped"
         if !busy {
@@ -637,7 +809,9 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
                 defer {
                     configurationSaving = false
                     notifyStateChanged()
-                    if installed { startVirtualMachine() }
+                    if installed && !stopWasRequested {
+                        startVirtualMachine(headless: !opensVMWindowOnStart)
+                    }
                 }
                 do {
                     if try await WindowsBootMedia.installationSucceeded(bundle: bundle) {
@@ -647,6 +821,8 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
                             settings.audioOutputEnabled = settings.experimentalWindowsAudio == true
                         }
                         try WindowsBootMedia.rememberDrivers(bundle: bundle, resources: settings)
+                        settings.installationMediaPath = nil
+                        settings.driverMediaPath = nil
                         try bundle.save(settings)
                         if settings.windowsUnattended == true {
                             try WindowsSetupSecret.remove(for: bundle.id)
@@ -664,7 +840,9 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
     }
 
     func virtualMachine(_ virtualMachine: VZVirtualMachine, didStopWithError error: Error) {
+        guard virtualMachine === self.virtualMachine else { return }
         displayResizeTask?.cancel()
+        networkMonitor.stop()
         activityView.stop()
         status.stringValue = "Virtual machine stopped: \(error.localizedDescription)"
         if !busy {
@@ -686,7 +864,8 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
     private func updateDeviceMenu() {
         if #available(macOS 15.0, *), let devices = disksController as? RemovableDisksController {
             devices.update(
-                machine: virtualMachine, bootDisk: activeBootDisk, busy: busy || configurationSaving)
+                machine: virtualMachine, bootDisk: activeBootDisk, installationMedia: activeInstallationMedia,
+                busy: busy || configurationSaving)
         }
     }
 
@@ -699,20 +878,37 @@ final class VMSessionController: NSObject, NSWindowDelegate, @preconcurrency VZV
     func bootFromStartupDisk() {
         guard canStart, bundle.distribution.usesEFI else { return }
         do {
-            var settings = try preferredResources()
-            settings.bootFromInstaller = false
-            try bundle.save(settings)
+            try releaseInstallationMedia()
             notifyStateChanged()
         } catch { NSAlert(error: error).runModal() }
     }
 
+    private func releaseInstallationMedia() throws {
+        var settings = try preferredResources()
+        if bundle.distribution == .windows {
+            try WindowsBootMedia.rememberDrivers(bundle: bundle, resources: settings)
+        }
+        settings.bootFromInstaller = false
+        settings.restoreImagePath = nil
+        settings.installationMediaPath = nil
+        settings.driverMediaPath = nil
+        try bundle.save(settings)
+        activeInstallationMedia = nil
+    }
+
     private func notifyStateChanged() {
+        thumbnails.update(view: vmView, running: virtualMachine?.state == .running)
         if let stoppedView {
             stoppedView.isHidden =
                 busy
                 || (virtualMachine != nil && virtualMachine?.state != .stopped
                     && virtualMachine?.state != .error)
             stoppedView.refresh(canStart: canStart, canConfigure: canConfigure)
+        }
+        if closeWhenStopped, !isActive {
+            closeWhenStopped = false
+            exitEntireDisplayIfNeeded()
+            window.close()
         }
         stateDidChange?()
     }

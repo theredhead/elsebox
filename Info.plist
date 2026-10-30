@@ -3,15 +3,17 @@
 <plist version="1.0"><dict>
 <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
 <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+<key>CFBundleIconFile</key><string>AppIcon.icns</string>
 <key>CFBundleName</key><string>VirtualMac</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>1.0</string>
-<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleVersion</key><string>2</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
 <key>CFBundleDocumentTypes</key><array><dict>
 <key>CFBundleTypeName</key><string>Apple Silicon Virtual Machine</string>
+<key>CFBundleTypeIconFile</key><string>AppIcon.icns</string>
 <key>CFBundleTypeRole</key><string>Editor</string>
 <key>LSHandlerRank</key><string>Owner</string>
 <key>LSTypeIsPackage</key><true/>
@@ -19,6 +21,7 @@
 </dict></array>
 <key>UTExportedTypeDeclarations</key><array><dict>
 <key>UTTypeIdentifier</key><string>nl.theredhead.virtualmac.asvm</string>
+<key>UTTypeIconFile</key><string>AppIcon.icns</string>
 <key>UTTypeDescription</key><string>Apple Silicon Virtual Machine</string>
 <key>UTTypeConformsTo</key><array><string>com.apple.package</string></array>
 <key>UTTypeTagSpecification</key><dict><key>public.filename-extension</key><array><string>asvm</string></array></dict>

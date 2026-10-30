@@ -14,6 +14,7 @@ struct SettingsChecks {
                     .utf8))
         precondition(legacy.pixelsPerInch == nil && legacy.diskPath == nil && legacy.sharedFolders == nil)
         precondition(legacy.useMacTrackpad == nil)
+        precondition((legacy.startHeadless ?? false) == false)
         precondition(legacy.displayWidth == 2560 && legacy.keepHostAspectRatio == true)
         let disk = root.appendingPathComponent("Test.img")
         try VMDiskStore.create(at: disk, capacityGB: 32)
@@ -54,6 +55,7 @@ struct SettingsChecks {
             fatalError("Invalid names must be rejected")
         } catch {}
         var updated = legacy
+        updated.startHeadless = true
         updated.pixelsPerInch = 72
         updated.useMacTrackpad = true
         updated.diskPath = disk.path
@@ -61,6 +63,10 @@ struct SettingsChecks {
         updated.sharedFolders = [share]
         let restored = try JSONDecoder().decode(Resources.self, from: JSONEncoder().encode(updated))
         precondition(restored.useMacTrackpad == true)
+        precondition(restored.startHeadless == true)
+        updated.startHeadless = false
+        let displayStartup = try JSONDecoder().decode(Resources.self, from: JSONEncoder().encode(updated))
+        precondition(displayStartup.startHeadless == false)
         precondition(restored.sharedFolders == [share] && restored.pixelsPerInch == 72)
         precondition(restored.diskPath == disk.path && restored.restoreImagePath == updated.restoreImagePath)
         updated.sharedFolders = []

@@ -17,6 +17,20 @@ struct WindowsSetupChecks {
         precondition(xml.contains("FirstLogonCommands"))
         precondition(xml.contains("C:\\ProgramData\\VirtualMac\\Setup\\Finalize-Windows.ps1"))
         precondition(!xml.contains("cmd.exe /c net user"))
+        let rdpXML = try XMLDocument(
+            xmlString: WindowsAnswerFile.make(
+                username: "tester", password: password, culture: .englishUS, enableRDP: true), options: [])
+        let rdpEnabled = try rdpXML.nodes(
+            forXPath:
+                "//*[local-name()='component' and @name='Microsoft-Windows-TerminalServices-LocalSessionManager']/*[local-name()='fDenyTSConnections']"
+        )
+        let nla = try rdpXML.nodes(
+            forXPath:
+                "//*[local-name()='component' and @name='Microsoft-Windows-TerminalServices-RDP-WinStationExtensions']/*[local-name()='UserAuthentication']"
+        )
+        precondition(rdpEnabled.count == 1 && rdpEnabled[0].stringValue == "false")
+        precondition(nla.count == 1 && nla[0].stringValue == "1")
+        precondition(!xml.contains("fDenyTSConnections"))
         for name in ["bad&name", "administrator", "..", "name.", "a\\b", ""] {
             do {
                 try WindowsAnswerFile.validateUsername(name)

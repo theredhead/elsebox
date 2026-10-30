@@ -17,6 +17,7 @@ struct Resources: Codable {
     var pixelsPerInch: Int? = nil
     var useMacTrackpad: Bool? = nil
     var showsStatusBar: Bool? = nil
+    var startHeadless: Bool? = nil
     var audioOutputEnabled: Bool? = nil
     var experimentalWindowsAudio: Bool? = nil
     var windowsCulture: String? = nil

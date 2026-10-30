@@ -95,7 +95,7 @@ All VM settings are independent and apply on that VM's next Start. A reboot insi
 
 For the focused running VM, **Mount Disk Image…** connects a RAW image or ISO as virtual USB mass storage on macOS 15+. Read-only is the default. Compressed DMGs require conversion to RAW. Connected images appear as Unmount actions; eject their volumes inside the guest before disconnecting. Images are not deleted or automatically reattached on later boots. The initial Linux installer is controlled by the saved boot option, rather than this runtime device list.
 
-Shut down guests before closing their windows or quitting. Running guests remain independent when you return to the library. VM memory state is not saved. Networking uses NAT; no clipboard or microphone sharing is enabled by default.
+Closing a running console offers Go Headless, Shut Down, Force Stop and Cancel. Shut down guests before quitting the app. Running guests remain independent when you return to the library. VM memory state is not saved. Networking uses NAT; no clipboard or microphone sharing is enabled by default.
 
 ## Development checks
 
@@ -113,27 +113,28 @@ Sources separate the app/library UI, per-VM session controller, portable bundle/
 ## Experimental Windows ARM
 
 The Windows preset uses 4 CPUs, 8 GiB RAM and a 64 GB sparse NVMe disk. Create/Save obtains
-Microsoft's English (US) ARM64 ISO and the pinned VirtIO-Win 0.1.302 driver ISO, verifies checksums and stores
-them centrally. Microsoft's normal download page may require session verification. Local ISOs
+Microsoft's selected-language ARM64 ISO, verifies its checksum and stores it centrally. Tested
+VirtIO-Win 0.1.302 ARM64 driver packages ship with the app; no driver ISO download is required. Microsoft's normal download page may require session verification. Local ISOs
 remain selectable in Configuration. No further Microsoft download is needed for cached media.
 
 The stock WinPE Setup UI does not take over the virtual display on this backend. Instead, the
 bootstrap applies the Windows Pro image (selected by edition metadata), installs ARM64 drivers
-and EFI boot files, then boots into Windows' interactive first-run setup. It does not create an
-account or answer the first-run questions. A fresh empty NVMe disk is required; existing partitioned
+and EFI boot files, then boots into Windows' first-run setup. Automatic setup creates the local
+account and applies the options chosen on the Mac; manual first-run setup remains available. A fresh empty NVMe disk is required; existing partitioned
 disks are refused. Windows licensing remains part of the user's normal setup.
 
 Boot preparation uses persistent generic EFI/NVRAM, runtime-checked PMU/trap emulation, and
 separately licensed EFI framebuffer helpers. Windows boots at 1024×768 using virtio graphics,
-NAT networking and USB input. The driver ISO attaches through virtio block because exposing it
-as USB mass storage crashed the VZ service here. A shared prepared boot image is cloned per VM
+NAT networking and USB input. Bundled driver folders are injected into WinPE and installed offline.
+Only explicitly selected custom driver ISOs attach through virtio block during installation. A shared prepared boot image is cloned per VM
 before WinPE edits it; the original installer ISO remains unchanged. WinPE records progress in
 `VirtualMac/WinPE.log` on its installer data partition. Deployment success selects startup-disk
 boot automatically. The tooling and corresponding third-party sources/licenses are bundled under
 `WindowsBootstrap`; see `Vendor/WindowsEFI` and `Vendor/wimlib`.
 
 Windows support remains experimental. No virtual TPM, configurable Secure Boot, shared folders,
-ballooning or audio integration is supplied. First-run/desktop compatibility is still being verified.
+or ballooning is supplied. Optional experimental audio uses the bundled test-signed driver package;
+see Automatic Windows setup below. Guest compatibility still needs testing for each change.
 
 Temporary GUI probes must include `scripts/HelperAppLifecycle.swift` and call
 `HelperAppLifecycle.install(name:)` before showing windows. This supplies Quit/⌘Q and exits
@@ -205,3 +206,106 @@ Keep any prototype in disposable .asvm bundles and leave existing guest boot pro
 
 References: [Waydroid in a VM](https://docs.waydro.id/faq/get-waydroid-to-work-through-a-vm),
 [AOSP Cuttlefish](https://source.android.com/docs/devices/cuttlefish/get-started).
+
+## VM library and thumbnails
+
+The library presents OS marks, VM names, configured CPU cores/RAM, logical disk capacity and state
+in a resizable, single-column collection sidebar. Selecting a VM shows its details and controls
+in the same window. Clicking empty sidebar space clears selection and shows the library overview:
+allocated VM-file storage plus the shared installer cache, and combined two-minute CPU, RAM and
+physical disk-I/O histories for running VM host processes. Storage is refreshed every 30 seconds;
+activity every second. Sparse-file allocation is used, and APFS clone-shared extents may be counted
+in more than one file. Unavailable process counters are identified rather than assumed to be zero.
+Scrollbars follow macOS settings. The install-media total opens a popover for individual cached
+ISO, IPSW and Windows boot-image cleanup. Files referenced by known VMs and files involved in
+media preparation are protected. Cleanup moves media to Trash; cache lookup will ignore missing
+files and redownload them if needed.
+The toolbar's plus icon creates a VM; Open remains available in the File menu. The detail pane's
+trash button offers Remove from list, Also delete files (move the bundle to Trash), or Cancel.
+Stopped VM details show the last saved screenshot when available.
+On macOS 14.4 or later, each visible running VM window is captured after five seconds and every
+30 seconds thereafter, using only this app's own windows. The guest viewport is saved as a JPEG
+with a 256-pixel longest edge and preserved aspect ratio. `Thumbnail.jpg` in the .asvm bundle is
+replaced on each successful capture; no screenshot history is kept. Minimized windows retain
+the previous thumbnail. VMs without a saved thumbnail retain their OS artwork.
+
+
+Shared-media cleanup protects unknown/local imports without an automatic source. Generated Windows
+boot media is removable only while its source ISO remains available. Popover actions share a
+trailing column and rows highlight on hover. The tested custom audio-driver ISO ships as
+`WindowsBootstrap/GuestTools.iso`, outside shared-media accounting and cleanup. A verified obsolete
+cache copy is removed at launch only when no known VM references it; the app asset remains intact.
+Devices → Disks offers Mount Windows Guest Tools for Windows guests.
+
+Devices → Disks also lists recent successful mounts (up to ten, with their read-only setting).
+Dropping ISO/IMG/RAW files onto a running VM mounts them as read-only virtual USB storage; the
+mount dialog can request writable access. Runtime USB mounting requires macOS 15 or later.
+Windows deployment and macOS installation release their installer references on success; subsequent
+Windows disk boots exclude the driver ISO. For Linux, use Eject Installation Media when its
+installer requests removal; it disconnects the installer USB and saves startup-disk boot for the
+next run. Boot from Startup Disk does the same for a stopped EFI guest. Generic Linux installers
+do not expose a common installation-complete notification, so media is not detached speculatively.
+
+The machine detail pane lists connected removable media with per-image eject controls; before a
+VM starts, it also shows its configured installer. These controls and Devices → Disks share the
+same runtime USB state. Installer ejection persists startup-disk boot and releases shared-media
+references. The custom audio image is bundled with the app and excluded from shared-media cleanup.
+
+
+## Bundled Windows VirtIO drivers
+
+Windows setup uses the tested VirtIO-Win 0.1.302 ARM64 viogpudo (graphics), NetKVM (network) and
+viostor (storage) packages in `WindowsBootstrap/VirtIODrivers`. These approximately 2.6 MB of
+runtime files are bundled with the app, with upstream license, provenance and per-file SHA-256
+checksums; debugging symbols and the full ISO are omitted. WinPE verifies and injects them,
+then DISM installs them into Windows. Automatic driver mode makes no driver download and attaches
+no driver ISO. Windows installer ISO downloads remain separate. Configuration offers an explicit
+custom driver ISO mode when needed. Audio continues to use its existing bundled, tested package.
+Run `python3 scripts/check-bundled-drivers.py` to verify the shipped driver binaries and hashes.
+
+## Guest IP addresses and compact activity
+
+The details pane shows discovered IPv4/IPv6 addresses for the running VM, refreshed every five
+seconds by passively matching its configured MAC addresses against host DHCP/ARP/NDP records.
+No guest agent or network scan is used. Addresses are selectable; stopped VMs show an explicitly
+labeled last-known snapshot stored in their bundle. Unavailable addresses are not guessed.
+Status bars use a fixed-width right-aligned CPU/RAM/disk icon-and-graph group, with 12-point gaps
+between groups. Numeric values remain in tooltips and accessibility labels.
+
+Manual verification (30 October 2026): the full Windows installation with bundled VirtIO drivers
+completed successfully. Extended black-screen periods during installation were observed.
+
+
+RDP provisioning correction (30 October 2026): earlier setup scripts used PowerShell New-Item
+-Force for existing registry keys, which can erase their values and subkeys, including the RDP
+listener configuration. New provisioning uses a non-destructive CreateSubKey/SetValue adapter,
+Windows' native unattended RDP/NLA settings, and first-login service/firewall activation. Setup
+transcripts remain under ProgramData/VirtualMac/Logs without account passwords. Answer-file
+cleanup runs even if first-login RDP activation fails. Previously provisioned guests require a
+fresh installation to validate this correction; no registry reconstruction is attempted.
+
+Headless boot: select a VM in the library and choose **Virtual Machine → Start Headless**
+(⌥⌘R). The VM runs without a display window; the library still provides resource
+graphs, IP addresses and shutdown controls. **Show VM Window** opens its console
+without restarting it. Closing a running VM console offers **Go Headless** by default, alongside
+shutdown, force stop and cancel. Headless mode does not change the guest hardware or RDP settings.
+
+The details pane includes a display-only live preview while visible, even when
+the VM console is closed. It detaches when the library is hidden or another VM
+is selected; it never changes the guest resolution. The last 256-pixel thumbnail
+is retained when the VM is stopped. The power control uses the VM’s default startup mode and
+requests shutdown when running; IP addresses have individual copy buttons.
+
+Installer downloads run per VM in the background. Settings are saved immediately
+and remain editable while media is prepared; completion merges only the media
+selection into the latest settings. Power stays disabled until that VM is ready.
+A thin progress bar occupies the top boundary of its details pane; hover for
+progress, or use its context menu to cancel/retry. Missing automatic installers
+resume preparation when the app opens. The details pane respects the unified
+titlebar's safe area.
+
+Each VM has a **Startup → Default startup mode** preference: **Always open the
+display** (the default, including existing VMs) or **Always start headless**.
+The power button and normal Start command follow this preference; the explicit
+Start Headless command overrides it for that boot. Showing an already-running
+VM never restarts it.

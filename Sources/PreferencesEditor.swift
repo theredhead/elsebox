@@ -100,6 +100,7 @@ final class PreferencesEditor: NSView {
     private let memory = NSPopUpButton()
     private let density = NSTextField()
     private let input = NSPopUpButton()
+    private let startupMode = NSPopUpButton()
     private let remoteAddress = NSTextField()
     private let remoteUsername = NSTextField()
     private var isWindows: Bool { bundle?.distribution == .windows }
@@ -114,7 +115,7 @@ final class PreferencesEditor: NSView {
     private var restoreURL: URL?
     private var driverURL: URL?
     private let automaticDrivers = NSButton(
-        checkboxWithTitle: "Download VirtIO drivers automatically", target: nil, action: nil)
+        checkboxWithTitle: "Use bundled Windows drivers", target: nil, action: nil)
     private let driverLabel = NSTextField(wrappingLabelWithString: "")
     private let bootInstaller = NSButton(checkboxWithTitle: "Boot installer ISO", target: nil, action: nil)
     private var usesEFI: Bool { return bundle?.distribution.usesEFI == true }
@@ -178,6 +179,13 @@ final class PreferencesEditor: NSView {
         field(input, label: "Pointer input:", y: 47, in: general)
         input.setFrameSize(NSSize(width: 320, height: 26))
         input.setAccessibilityLabel("Pointer input mode")
+
+        let startup = addTab("Startup", to: tabs)
+        startupMode.addItems(withTitles: ["Always open the display", "Always start headless"])
+        startupMode.selectItem(at: settings.startHeadless == true ? 1 : 0)
+        startupMode.setAccessibilityLabel("Default startup mode")
+        field(startupMode, label: "Default startup mode:", y: 285, in: startup)
+        startupMode.setFrameSize(NSSize(width: 280, height: 26))
 
         if !isWindows {
             let audio = addTab("Audio", to: tabs)
@@ -301,6 +309,7 @@ final class PreferencesEditor: NSView {
             throw settingsError("Select an ARM64 installer ISO.")
         }
         var result = original
+        result.startHeadless = startupMode.indexOfSelectedItem == 1
         result.cpu = cpu.selectedTag()
         result.memory = UInt64(memory.selectedTag()) * 1_073_741_824
         result.displayWidth = resolution.selectedResolution.width
@@ -393,7 +402,7 @@ final class PreferencesEditor: NSView {
     private func updateDriverLabel() {
         driverLabel.stringValue =
             driverURL?.path
-            ?? (automaticDrivers.state == .on ? "VirtIO-Win 0.1.302 · downloads on Save" : "None")
+            ?? (automaticDrivers.state == .on ? "VirtIO-Win 0.1.302 · included with the app" : "None")
     }
 
     private func addTab(_ title: String, to tabs: NSTabView) -> NSView {

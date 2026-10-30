@@ -68,6 +68,7 @@ struct GuestConfigurationChecks {
         try Data(repeating: 1, count: 4096).write(to: drivers)
         windowsSettings.installationMediaPath = iso.path
         windowsSettings.driverMediaPath = drivers.path
+        windowsSettings.automaticWindowsDrivers = false
         windowsSettings.bootFromInstaller = true
         try windows.save(windowsSettings)
         let windowsStored = try windows.storedSettings()
@@ -79,13 +80,18 @@ struct GuestConfigurationChecks {
         precondition(windowsConfiguration.storageDevices[0] is VZUSBMassStorageDeviceConfiguration)
         precondition(windowsConfiguration.storageDevices[1] is VZNVMExpressControllerDeviceConfiguration)
         precondition(windowsConfiguration.storageDevices[2] is VZVirtioBlockDeviceConfiguration)
+        var bundledSettings = windowsResolved
+        bundledSettings.automaticWindowsDrivers = true
+        let bundledConfiguration = try EFIVMConfiguration.make(bundle: windows, resources: bundledSettings)
+        precondition(bundledConfiguration.storageDevices.count == 2)
+        precondition(bundledConfiguration.storageDevices[0] is VZUSBMassStorageDeviceConfiguration)
+        precondition(bundledConfiguration.storageDevices[1] is VZNVMExpressControllerDeviceConfiguration)
         precondition(windowsConfiguration.directorySharingDevices.isEmpty)
         precondition(windowsConfiguration.memoryBalloonDevices.isEmpty)
         precondition(windowsConfiguration.graphicsDevices.first is VZVirtioGraphicsDeviceConfiguration)
         if VZVirtualMachine.isSupported { try windowsConfiguration.validate() }
         var diskBoot = windowsResolved
         diskBoot.bootFromInstaller = false
-        diskBoot.driverMediaPath = nil
         let diskOnly = try EFIVMConfiguration.make(bundle: windows, resources: diskBoot)
         precondition(diskOnly.storageDevices.count == 1)
         var unsafeWindows = diskBoot

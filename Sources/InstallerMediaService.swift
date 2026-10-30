@@ -12,27 +12,19 @@ actor InstallerMediaService {
         )!,
         sha256: "303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d")
     private let windowsInstaller: (@Sendable () async throws -> InstallerImage)?
-    private let driverImage: InstallerImage
     private let transport: any InstallerTransport
     init(
         transport: any InstallerTransport = HTTPInstallerTransport(),
-        driverImage: InstallerImage = InstallerMediaService.windowsDriverImage,
         windowsInstaller: (@Sendable () async throws -> InstallerImage)? = nil
     ) {
         self.windowsInstaller = windowsInstaller
         self.transport = transport
-        self.driverImage = driverImage
     }
 
     static func needsDownload(bundle: VMBundle, settings: Resources) -> Bool {
         if bundle.distribution == .windows {
             guard settings.bootFromInstaller != false else { return false }
-            return (settings.bootFromInstaller != false && settings.installationMediaPath == nil)
-                || (settings.automaticWindowsDrivers == true
-                    && settings.driverMediaPath.map {
-                        URL(fileURLWithPath: $0).deletingLastPathComponent().lastPathComponent
-                            != windowsDriverImage.sha256
-                    } != false)
+            return settings.installationMediaPath == nil
         }
         if bundle.distribution.usesEFI {
             return settings.bootFromInstaller != false && settings.installationMediaPath == nil
@@ -79,10 +71,16 @@ actor InstallerMediaService {
             }
             progress("Finding macOS restore image…", nil)
             let restore = try await VZMacOSRestoreImage.latestSupported
-            let temporary = try await transport.download(from: restore.url) {
+            let downloaded = try await transport.download(from: restore.url) {
                 progress("Downloading macOS…", $0)
             }
-            defer { try? FileManager.default.removeItem(at: temporary) }
+            // Virtualization validates the restore-image file type as well as its contents.
+            let temporary = downloaded.appendingPathExtension("ipsw")
+            defer {
+                try? FileManager.default.removeItem(at: downloaded)
+                try? FileManager.default.removeItem(at: temporary)
+            }
+            try FileManager.default.moveItem(at: downloaded, to: temporary)
             try Task.checkCancellation()
             progress("Checking macOS restore image…", nil)
             _ = try await VZMacOSRestoreImage.image(from: temporary)
@@ -171,25 +169,9 @@ actor InstallerMediaService {
         guard settings.automaticWindowsDrivers == true else {
             return settings
         }
-        let cache = bundle.mediaCache
-        let lease = try await cache.acquire("image-" + driverImage.sha256)
-        defer { withExtendedLifetime(lease) {} }
-        let target = cache.file(digest: driverImage.sha256, extension: "iso")
-        if !FileManager.default.isReadableFile(atPath: target.path) {
-            let temporary = try await transport.download(from: driverImage.url) {
-                progress("Downloading Windows VirtIO drivers…", $0)
-            }
-            defer { try? FileManager.default.removeItem(at: temporary) }
-            try Task.checkCancellation()
-            progress("Verifying Windows drivers…", nil)
-            guard try InstallerMediaCache.sha256(of: temporary) == driverImage.sha256 else {
-                throw settingsError("Windows driver ISO checksum mismatch. Try again or select a local ISO.")
-            }
-            try Task.checkCancellation()
-            _ = try cache.commit(temporary, digest: driverImage.sha256, extension: "iso")
-        }
+        progress("Using bundled Windows VirtIO drivers…", nil)
         var result = settings
-        result.driverMediaPath = target.path
+        result.driverMediaPath = nil
         return result
     }
 

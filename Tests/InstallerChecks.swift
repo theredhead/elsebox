@@ -85,49 +85,38 @@ struct InstallerChecks {
             at: root.appendingPathComponent("Windows.asvm"), name: "Windows", capacityGB: 64,
             preset: VMStarterPreset(distribution: .windows, role: .desktop), mediaCache: cache)
         var windowsDiskSettings = try windows.resolvedSettings()
-        windowsDiskSettings.bootFromInstaller = false
+        windowsDiskSettings.bootFromInstaller = true
+        windowsDiskSettings.installationMediaPath = savedFile.path
         let windowsSettings = windowsDiskSettings
         precondition(windowsSettings.automaticWindowsDrivers == true)
         let driverCount = TransferCount()
         let driverTransport = FixtureTransport(
             metadata: [:], body: Data("driver fixture".utf8), counter: driverCount)
-        let driverBody = Data("driver fixture".utf8)
-        let driverHash = SHA256.hash(data: driverBody).map { String(format: "%02x", $0) }.joined()
-        let driverImage = InstallerImage(
-            url: URL(string: "https://example.org/drivers.iso")!, sha256: driverHash)
-        async let driverOne = InstallerMediaService(transport: driverTransport, driverImage: driverImage)
-            .prepare(
-                bundle: windows, settings: windowsSettings
-            ) { _, _ in }
-        async let driverTwo = InstallerMediaService(transport: driverTransport, driverImage: driverImage)
-            .prepare(
-                bundle: windows, settings: windowsSettings
-            ) { _, _ in }
-        let (driversOne, driversTwo) = try await (driverOne, driverTwo)
-        precondition(driversOne.driverMediaPath == driversTwo.driverMediaPath)
-        let driverDownloads = await driverCount.value()
-        precondition(driverDownloads == 1)
-        try windows.save(driversOne)
-        precondition(tryValue { try windows.storedSettings().driverMediaPath!.hasPrefix("media://") })
-        var noDrivers = windowsSettings
-        noDrivers.automaticWindowsDrivers = false
-        let disabled = try await InstallerMediaService(transport: offline).prepare(
-            bundle: windows, settings: noDrivers
+        async let driverOne = InstallerMediaService(transport: driverTransport).prepare(
+            bundle: windows, settings: windowsSettings
         ) { _, _ in }
-        precondition(disabled.driverMediaPath == nil)
-        let corruptWindows = try VMBundle.create(
-            at: root.appendingPathComponent("CorruptWindows.asvm"), name: "Corrupt", capacityGB: 64,
-            preset: VMStarterPreset(distribution: .windows, role: .desktop),
-            mediaCache: InstallerMediaCache(root: root.appendingPathComponent("Bad Drivers")))
-        do {
-            _ = try await InstallerMediaService(transport: offline, driverImage: driverImage).prepare(
-                bundle: corruptWindows, settings: windowsSettings
-            ) { _, _ in }
-            fatalError("Bad driver checksum must fail")
-        } catch {}
-        precondition(tryValue { try corruptWindows.storedSettings().driverMediaPath } == nil)
+        async let driverTwo = InstallerMediaService(transport: driverTransport).prepare(
+            bundle: windows, settings: windowsSettings
+        ) { _, _ in }
+        let (driversOne, driversTwo) = try await (driverOne, driverTwo)
+        precondition(driversOne.driverMediaPath == nil && driversTwo.driverMediaPath == nil)
+        let driverDownloads = await driverCount.value()
+        precondition(driverDownloads == 0)
+        var legacyDriverSettings = windowsSettings
+        legacyDriverSettings.driverMediaPath = root.appendingPathComponent("old-driver.iso").path
+        let migrated = try await InstallerMediaService(transport: offline).prepare(
+            bundle: windows, settings: legacyDriverSettings
+        ) { _, _ in }
+        precondition(migrated.driverMediaPath == nil)
+        var custom = legacyDriverSettings
+        custom.automaticWindowsDrivers = false
+        let preserved = try await InstallerMediaService(transport: offline).prepare(
+            bundle: windows, settings: custom
+        ) { _, _ in }
+        precondition(preserved.driverMediaPath == custom.driverMediaPath)
         print(
-            "Passed: automatic Windows driver download, concurrent cache reuse, opt-out, checksum rejection")
+            "Passed: bundled Windows drivers require zero downloads, release legacy ISOs, preserve custom driver opt-out"
+        )
         let installerDownloads = TransferCount()
         let resolverCalls = TransferCount()
         let windowsBody = Data("Windows ARM installer fixture".utf8)
@@ -138,6 +127,7 @@ struct InstallerChecks {
             sha256: windowsHash)
         var automaticSettings = windowsSettings
         automaticSettings.bootFromInstaller = true
+        automaticSettings.installationMediaPath = nil
         automaticSettings.automaticWindowsDrivers = false
         let automaticSnapshot = automaticSettings
         async let windowsOne = InstallerMediaService(

@@ -20,13 +20,20 @@ image_device="${first%%s<->}"
 /usr/sbin/diskutil info -plist "${image_device}s3" > "$work/install.plist"
 boot_mount=$(/usr/libexec/PlistBuddy -c 'Print :MountPoint' "$work/boot.plist")
 install_mount=$(/usr/libexec/PlistBuddy -c 'Print :MountPoint' "$work/install.plist")
-/usr/bin/hdiutil attach -readonly -nobrowse -plist "$drivers" > "$work/drivers.plist"
-driver_device=$(/usr/libexec/PlistBuddy -c 'Print :system-entities:0:dev-entry' "$work/drivers.plist")
-driver_mount=$(/usr/libexec/PlistBuddy -c 'Print :system-entities:0:mount-point' "$work/drivers.plist")
+driver_subdirectory=""
+if [[ "$drivers" == bundled ]]; then
+    driver_mount="$resources/VirtIODrivers"
+    (cd "$driver_mount" && /usr/bin/shasum -a 256 -c Checksums.sha256 >/dev/null)
+else
+    /usr/bin/hdiutil attach -readonly -nobrowse -plist "$drivers" > "$work/drivers.plist"
+    driver_device=$(/usr/libexec/PlistBuddy -c 'Print :system-entities:0:dev-entry' "$work/drivers.plist")
+    driver_mount=$(/usr/libexec/PlistBuddy -c 'Print :system-entities:0:mount-point' "$work/drivers.plist")
+    driver_subdirectory="/w11/ARM64"
+fi
 /bin/mkdir -p "$work/payload/Drivers" "$install_mount/VirtualMac"
 for driver in viostor viogpudo NetKVM; do
     /bin/mkdir -p "$work/payload/Drivers/$driver"
-    /bin/cp -R "$driver_mount/$driver/w11/ARM64/" "$work/payload/Drivers/$driver/"
+    /bin/cp -R "$driver_mount/$driver$driver_subdirectory/" "$work/payload/Drivers/$driver/"
 done
 if ! /usr/bin/grep -Eiq 'PCI\\VEN_1AF4&DEV_1050[[:space:]]*$' "$work/payload/Drivers/viogpudo/viogpudo.inf"; then
     print -u2 'The ARM64 graphics driver does not match Apple virtual GPUs. Select a current VirtIO driver ISO.'

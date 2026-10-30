@@ -92,12 +92,21 @@ enum WindowsAnswerFile {
         }
     }
 
-    static func make(username: String, password: String, culture: WindowsCulture) throws -> String {
+    static func make(username: String, password: String, culture: WindowsCulture, enableRDP: Bool = false)
+        throws -> String
+    {
         try validateUsername(username)
+        let remoteDesktop =
+            enableRDP
+            ? """
+            <component name="Microsoft-Windows-TerminalServices-LocalSessionManager" processorArchitecture="arm64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"><fDenyTSConnections>false</fDenyTSConnections></component>
+            <component name="Microsoft-Windows-TerminalServices-RDP-WinStationExtensions" processorArchitecture="arm64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"><UserAuthentication>1</UserAuthentication></component>
+            """ : ""
         return """
             <?xml version="1.0" encoding="utf-8"?>
             <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
               <settings pass="specialize">
+                \(remoteDesktop)
                 <component name="Microsoft-Windows-Deployment" processorArchitecture="arm64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
                   <RunSynchronous><RunSynchronousCommand wcm:action="add"><Order>1</Order><Path>powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\\ProgramData\\VirtualMac\\Setup\\Prepare-Windows.ps1</Path></RunSynchronousCommand></RunSynchronous>
                 </component>
