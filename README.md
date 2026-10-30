@@ -1,14 +1,16 @@
-# VirtualMac
+# ElseBox
+
+[Source repository](https://github.com/theredhead/elsebox)
 
 An AppKit VM library for Apple silicon. Each virtual machine is a portable **`.asvm`** (Apple Silicon Virtual Machine) bundle with its own configuration, disk, firmware, and identity. Requires macOS Sonoma 14+; live removable disks require Sequoia 15+.
 
 ## Run
 
-Open `VirtualMac.xcodeproj`, select **VirtualMac → My Mac**, and run. Local builds use ad-hoc signing with the virtualization entitlement; no development team is needed.
+Open `ElseBox.xcodeproj`, select **ElseBox → My Mac**, and run. Local builds use ad-hoc signing with the virtualization entitlement; no development team is needed.
 
 ```sh
 ./build.sh
-open build/VirtualMac.app
+open build/ElseBox.app
 ```
 
 Launch opens the **VM Library**, with nothing running automatically. Create or open bundles, select a VM, and choose **Start**, **Configure**, or **Show Window**. Multiple VM windows and running sessions are independent. **File → Show VM Library** (Command-L) returns to the list. A stopped VM displays its system icon, specs, and Start/Configure buttons.
@@ -50,7 +52,7 @@ This app's Linux implementation follows Apple's [EFI GUI Linux sample](https://d
 Default storage:
 
 ```text
-~/Library/Application Support/nl.theredhead.virtualmac/
+~/Library/Application Support/nl.theredhead.elsebox/
     Registry.json
     Install Media/
         Index/                           # Preset-to-media references
@@ -79,7 +81,7 @@ Bundles carry stable identity; opening a filesystem copy with the same UUID whil
 
 ### Existing single-VM setup
 
-On first launch, the previous selected disk and settings are imported to `Virtual Machines/VirtualMac.asvm`. Hardware identity and installation state are preserved. APFS copy-on-write is used when available, and the original files remain as a backup. If an older app instance or the disk is still in use, migration is deferred; close that instance after guest shutdown and use **File → Import Previous VM…**. Migration is tracked in the registry and does not repeat after success.
+On first launch, the previous selected disk and settings are imported to `Virtual Machines/ElseBox.asvm`. Hardware identity and installation state are preserved. APFS copy-on-write is used when available, and the original files remain as a backup. If an older app instance or the disk is still in use, migration is deferred; close that instance after guest shutdown and use **File → Import Previous VM…**. Migration is tracked in the registry and does not repeat after success.
 
 ## Configuration and display
 
@@ -158,7 +160,7 @@ macOS and Linux guests use a VirtIO sound device; Linux requires a kernel with s
 Windows excludes the unsupported native sound device. Its Remote Desktop configuration tab saves
 an address and username and opens an RDP connection in an installed client, with host audio playback
 enabled and microphone/clipboard redirection disabled. Enable Remote Desktop inside the Windows
-guest separately. No credentials are stored by VirtualMac.
+guest separately. No credentials are stored by ElseBox.
 
 Installed Windows VMs keep startup disk/media/driver choices fixed in Configuration. CPU and RAM
 have Windows minimums (2 cores, 4 GiB); the proven local display/input configuration stays fixed.
@@ -194,7 +196,7 @@ Existing Windows boot profiles and credentials are not changed by this creation 
 
 ## Android exploration
 
-Android is a future experimental guest; it is not currently supported or verified in VirtualMac.
+Android is a future experimental guest; it is not currently supported or verified in ElseBox.
 Start by evaluating ARM64 Linux with Waydroid, including the required Binder kernel support
 and software rendering. A longer-term option is a tailored ARM64 Android image booted directly
 through Virtualization.framework, using AOSP Cuttlefish as a reference rather than assuming its
@@ -311,3 +313,7 @@ Start Headless command overrides it for that boot. Showing an already-running
 VM never restarts it.
 
 Source layout and dependency boundaries are documented in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+ElseBox is version **0.1.0**, bundle identifier **`nl.theredhead.elsebox`**.
+This development build uses a fresh namespace and does not migrate data from
+the former VirtualMac app. Existing throwaway data is left untouched.

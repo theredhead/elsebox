@@ -51,13 +51,13 @@ final class ApplicationMenus: NSObject, NSMenuItemValidation {
             return item
         }
 
-        let app = submenu("VirtualMac")
-        _ = add("About VirtualMac", .about, to: app)
+        let app = submenu("ElseBox")
+        _ = add("About ElseBox", .about, to: app)
         app.addItem(.separator())
         _ = add("Configure Virtual Machine…", .configure, ",", to: app)
         app.addItem(.separator())
         app.addItem(
-            withTitle: "Quit VirtualMac", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+            withTitle: "Quit ElseBox", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         let file = submenu("File")
         _ = add("New Virtual Machine…", .newVM, "n", to: file)

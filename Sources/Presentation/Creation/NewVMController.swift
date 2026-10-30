@@ -54,7 +54,7 @@ enum NewVMController {
         panel.directoryURL = defaultLocation
         panel.canCreateDirectories = true
         panel.allowedContentTypes = [
-            UTType(exportedAs: "nl.theredhead.virtualmac.asvm", conformingTo: .package)
+            UTType(exportedAs: "nl.theredhead.elsebox.asvm", conformingTo: .package)
         ]
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
 

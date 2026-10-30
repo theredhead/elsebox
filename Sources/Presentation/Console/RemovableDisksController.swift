@@ -186,7 +186,7 @@ final class RemovableDisksController: NSObject, NSMenuDelegate {
         guard canChangeDevices else { return }
 
         let panel = NSOpenPanel()
-        panel.title = "Mount Disk Image in VirtualMac"
+        panel.title = "Mount Disk Image in ElseBox"
         panel.message =
             "Choose a RAW disk image or ISO. Compressed DMG images must first be converted to RAW."
         panel.canChooseDirectories = false

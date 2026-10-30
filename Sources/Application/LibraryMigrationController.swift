@@ -12,10 +12,10 @@ final class LibraryMigrationController {
         guard !isWorking else { return }
         guard
             library.root != VMDiskStore.directory
-                || !NSRunningApplication.runningApplications(withBundleIdentifier: "nl.theredhead.virtualmac")
+                || !NSRunningApplication.runningApplications(withBundleIdentifier: "nl.theredhead.elsebox")
                     .contains(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier })
         else {
-            didFail?(settingsError("Close the older VirtualMac instance before migrating its VM."))
+            didFail?(settingsError("Close the older ElseBox instance before migrating its VM."))
             return
         }
         isWorking = true

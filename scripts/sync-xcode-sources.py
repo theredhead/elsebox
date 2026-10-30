@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 
 root = Path(__file__).resolve().parent.parent
-project = root / "VirtualMac.xcodeproj/project.pbxproj"
+project = root / "ElseBox.xcodeproj/project.pbxproj"
 text = project.read_text()
 groups, references, builds = {}, {}, {}
 for line in text.splitlines():

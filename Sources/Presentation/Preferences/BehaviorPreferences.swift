@@ -68,7 +68,7 @@ final class BehaviorPreferences: NSObject {
                 prompt for credentials:i:1
                 """
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(
-                "VirtualMac-\(UUID().uuidString).rdp")
+                "ElseBox-\(UUID().uuidString).rdp")
             try Data(text.utf8).write(to: url, options: .atomic)
             guard NSWorkspace.shared.urlForApplication(toOpen: url) != nil else {
                 throw settingsError("Install Microsoft Windows App to open Remote Desktop connections.")

@@ -2,7 +2,7 @@ import AppKit
 
 @main
 @MainActor
-struct VirtualMacApp {
+struct ElseBoxApp {
     static func main() {
         let application = NSApplication.shared
         let controller = AppController()

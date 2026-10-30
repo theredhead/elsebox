@@ -4,7 +4,7 @@ import Virtualization
 enum VMDiskStore {
     static var directory: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("nl.theredhead.virtualmac", isDirectory: true)
+            .appendingPathComponent("nl.theredhead.elsebox", isDirectory: true)
     }
 
     static var defaultDisk: URL { directory.appendingPathComponent("Disk.img") }
@@ -27,13 +27,13 @@ enum VMDiskStore {
         {
             return directory  // Preserve the original VM's identity and installation marker.
         }
-        return URL(fileURLWithPath: disk.path + ".virtualmac", isDirectory: true)
+        return URL(fileURLWithPath: disk.path + ".elsebox", isDirectory: true)
     }
 
     static func validate(_ disk: URL) throws {
         let values = try disk.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
         guard values.isRegularFile == true, (values.fileSize ?? 0) > 0 else {
-            throw settingsError("Choose a nonempty RAW disk image created by VirtualMac.")
+            throw settingsError("Choose a nonempty RAW disk image created by ElseBox.")
         }
 
         let metadata = metadata(for: disk)
@@ -43,7 +43,7 @@ enum VMDiskStore {
                 || fm.fileExists(atPath: metadata.appendingPathComponent("ManagedDisk").path)
         else {
             throw settingsError(
-                "This disk has no VirtualMac identity files. Choose a disk created by VirtualMac, keeping its .virtualmac folder alongside it. A macOS disk alone does not contain its virtual hardware identity."
+                "This disk has no ElseBox identity files. Choose a disk created by ElseBox, keeping its .elsebox folder alongside it. A macOS disk alone does not contain its virtual hardware identity."
             )
         }
     }

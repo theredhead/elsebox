@@ -99,7 +99,7 @@ final class VMLibrary {
                 "The previous startup disk is missing. Locate it before migrating the previous VM.")
         }
 
-        let destination = defaultLocation.appendingPathComponent("VirtualMac.asvm")
+        let destination = defaultLocation.appendingPathComponent("ElseBox.asvm")
         if fm.fileExists(atPath: destination.path) {
             // Recover a migration completed before a registry write was interrupted.
             _ = try register(destination)
@@ -135,7 +135,7 @@ final class VMLibrary {
                 ]
             }
 
-            let manifest = VMManifest(id: UUID(), name: "VirtualMac")
+            let manifest = VMManifest(id: UUID(), name: "ElseBox")
             try JSONEncoder().encode(manifest).write(
                 to: staging.appendingPathComponent("VM.json"), options: .atomic)
             try JSONEncoder().encode(settings).write(

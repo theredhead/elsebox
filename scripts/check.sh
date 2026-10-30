@@ -21,7 +21,7 @@ build/InstallerChecks
 xcrun swiftc -module-cache-path build/ModuleCache "${model_sources[@]}" Sources/Platform/Installers/InstallerCatalog.swift Sources/Platform/Installers/InstallerTransport.swift Sources/Platform/Installers/InstallerMediaService.swift Sources/Platform/Installers/WindowsInstallerResolver.swift Sources/Application/InstallerPreparation.swift Tests/PreparationChecks.swift -o build/PreparationChecks
 build/PreparationChecks
 xcrun swiftc -module-cache-path build/ModuleCache "${model_sources[@]}" Sources/Platform/Virtualization/EFIVMConfiguration.swift Sources/Platform/Virtualization/VMAudioConfiguration.swift Sources/Platform/Virtualization/WindowsBootMedia.swift Tests/GuestConfigurationChecks.swift -o build/GuestConfigurationChecks
-codesign --force --sign - --entitlements VirtualMac.entitlements build/GuestConfigurationChecks
+codesign --force --sign - --entitlements ElseBox.entitlements build/GuestConfigurationChecks
 build/GuestConfigurationChecks
 xcrun swiftc -module-cache-path build/ModuleCache -swift-version 5 Sources/Presentation/Console/VMInputView.swift Tests/InputChecks.swift -o build/InputChecks
 build/InputChecks
@@ -34,16 +34,17 @@ build/LibraryOverviewChecks
 xcrun swiftc -module-cache-path build/ModuleCache Sources/Domain/Monitoring/VMNetworkSnapshot.swift Sources/Platform/Monitoring/VMNetworkAddressParser.swift Sources/Platform/Monitoring/VMNetworkAddressSource.swift Tests/NetworkAddressChecks.swift -o build/NetworkAddressChecks
 build/NetworkAddressChecks
 ui_sources=(Sources/**/*.swift)
-ui_sources=("${ui_sources[@]:#Sources/Application/VirtualMacApp.swift}")
+ui_sources=("${ui_sources[@]:#Sources/Application/ElseBoxApp.swift}")
 xcrun swiftc -module-cache-path build/ModuleCache -swift-version 5 "${ui_sources[@]}" Tests/PreferencesChecks.swift -o build/PreferencesChecks
 build/PreferencesChecks
 for bootstrap_script in Resources/WindowsBootstrap/*.sh; do
     zsh -n "$bootstrap_script"
 done
-if ! xcodebuild -project VirtualMac.xcodeproj -scheme VirtualMac -configuration Debug -derivedDataPath build/Xcode build > build/xcodebuild.log 2>&1; then
+if ! xcodebuild -project ElseBox.xcodeproj -scheme ElseBox -configuration Debug -derivedDataPath build/Xcode build > build/xcodebuild.log 2>&1; then
     tail -n 60 build/xcodebuild.log
     exit 1
 fi
-codesign --verify --strict build/Xcode/Build/Products/Debug/VirtualMac.app
-plutil -lint Info.plist VirtualMac.xcodeproj/project.pbxproj
+codesign --verify --strict build/Xcode/Build/Products/Debug/ElseBox.app
+plutil -lint Info.plist ElseBox.xcodeproj/project.pbxproj
+python3 scripts/check-product.py build/Xcode/Build/Products/Debug/ElseBox.app/Contents/Info.plist
 echo 'Xcode build and signature verification passed.'

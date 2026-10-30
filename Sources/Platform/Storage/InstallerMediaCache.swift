@@ -107,7 +107,7 @@ struct InstallerMediaCache {
             do {
                 return try ExclusiveFileLease(
                     file: lockFile, inUseMessage: "Installer is being prepared by another VM.")
-            } catch let error as NSError where error.domain == "nl.theredhead.virtualmac" {
+            } catch let error as NSError where error.domain == "nl.theredhead.elsebox" {
                 try await Task.sleep(nanoseconds: 250_000_000)
             }
         }

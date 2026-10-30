@@ -4,7 +4,7 @@ import Foundation
 struct SettingsChecks {
     static func main() throws {
         let fm = FileManager.default
-        let root = fm.temporaryDirectory.appendingPathComponent("VirtualMacChecks-\(UUID().uuidString)")
+        let root = fm.temporaryDirectory.appendingPathComponent("ElseBoxChecks-\(UUID().uuidString)")
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: root) }
         let legacy = try JSONDecoder().decode(

@@ -63,7 +63,7 @@ struct LibraryOverviewChecks {
         precondition(InstallerMediaInventory.canRecreate(boot, root: media, downloadable: []))
         try FileManager.default.removeItem(at: source)
         precondition(!InstallerMediaInventory.canRecreate(boot, root: media, downloadable: []))
-        let suite = "nl.theredhead.virtualmac.tests.\(UUID().uuidString)"
+        let suite = "nl.theredhead.elsebox.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         RecentDiskImages.remember(disk, readOnly: true, defaults: defaults)

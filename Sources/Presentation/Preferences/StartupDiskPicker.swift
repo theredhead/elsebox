@@ -5,9 +5,9 @@ import AppKit
 enum StartupDiskPicker {
     static func choose(usesEFI: Bool) throws -> URL? {
         let panel = NSOpenPanel()
-        panel.title = "Choose a VirtualMac Startup Disk"
+        panel.title = "Choose a ElseBox Startup Disk"
         panel.message =
-            "Choose a stopped VirtualMac disk with its identity files. Save imports a copy into this .asvm bundle."
+            "Choose a stopped ElseBox disk with its identity files. Save imports a copy into this .asvm bundle."
         panel.canChooseDirectories = true
         panel.treatsFilePackagesAsDirectories = false
         guard panel.runModal() == .OK, let url = panel.url else { return nil }

@@ -10,7 +10,7 @@ struct HTTPInstallerTransport: InstallerTransport {
     func data(from url: URL) async throws -> Data {
         var request = URLRequest(url: url)
         request.timeoutInterval = 45
-        request.setValue("VirtualMac/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("ElseBox/0.1.0", forHTTPHeaderField: "User-Agent")
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             try Self.validate(response)
@@ -70,7 +70,7 @@ private final class InstallerTransfer: NSObject, URLSessionDownloadDelegate, @un
         let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
         self.session = session
         var request = URLRequest(url: url)
-        request.setValue("VirtualMac/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("ElseBox/0.1.0", forHTTPHeaderField: "User-Agent")
         let task = session.downloadTask(with: request)
         self.task = task
         lock.unlock()

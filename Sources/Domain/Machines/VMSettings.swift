@@ -36,5 +36,5 @@ struct VMSettings: Codable {
 }
 
 func settingsError(_ message: String) -> NSError {
-    NSError(domain: "nl.theredhead.virtualmac", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
+    NSError(domain: "nl.theredhead.elsebox", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
 }

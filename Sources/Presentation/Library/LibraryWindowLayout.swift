@@ -11,7 +11,7 @@ enum LibraryWindowLayout {
             contentRect: NSRect(x: 0, y: 0, width: 1120, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered, defer: false)
-        window.title = "VirtualMac — VM Library"
+        window.title = "ElseBox — VM Library"
         window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: 980, height: 680)
         window.titleVisibility = .hidden

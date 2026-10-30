@@ -3,7 +3,7 @@ import Security
 
 /// Passwords live in the login Keychain until WinPE has deployed the answer file.
 enum WindowsSetupSecret {
-    private static let service = "nl.theredhead.virtualmac.windows-setup"
+    private static let service = "nl.theredhead.elsebox.windows-setup"
 
     static func save(_ password: String, for id: UUID) throws {
         let query = key(id)

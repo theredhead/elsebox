@@ -7,7 +7,7 @@ for source in (root / "Sources/Domain").rglob("*.swift"):
     imports = re.findall(r"^import (\w+)", source.read_text(), re.M)
     assert set(imports) <= {"Foundation"}, (source, imports)
 
-project = (root / "VirtualMac.xcodeproj/project.pbxproj").read_text()
+project = (root / "ElseBox.xcodeproj/project.pbxproj").read_text()
 groups = {}
 references = {}
 for line in project.splitlines():

@@ -41,7 +41,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             // The old process has no .asvm lease, so don't migrate underneath it.
             let otherInstance =
                 library.root == VMDiskStore.directory
-                && NSRunningApplication.runningApplications(withBundleIdentifier: "nl.theredhead.virtualmac")
+                && NSRunningApplication.runningApplications(withBundleIdentifier: "nl.theredhead.elsebox")
                     .contains { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
             if !otherInstance {
                 try? BundledGuestTools.removeLegacyCacheCopy(
@@ -49,7 +49,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 migratePreviousVM()
             } else {
                 libraryWindow.setMessage(
-                    "Close the older VirtualMac instance before importing its previous VM.")
+                    "Close the older ElseBox instance before importing its previous VM.")
                 openPendingBundles()
             }
             reload()
@@ -231,13 +231,13 @@ final class AppController: NSObject, NSApplicationDelegate {
         let panel = NSOpenPanel()
         panel.title = "Open Virtual Machine Bundles"
         panel.message =
-            "Select one or more VirtualMac virtual machine bundles (.asvm) to add to your library."
+            "Select one or more ElseBox virtual machine bundles (.asvm) to add to your library."
         panel.canChooseFiles = true
         panel.canChooseDirectories = true
         panel.treatsFilePackagesAsDirectories = false
         panel.allowsMultipleSelection = true
         panel.allowedContentTypes = [
-            UTType(exportedAs: "nl.theredhead.virtualmac.asvm", conformingTo: .package)
+            UTType(exportedAs: "nl.theredhead.elsebox.asvm", conformingTo: .package)
         ]
         guard panel.runModal() == .OK else { return }
         openBundles(panel.urls)

@@ -144,7 +144,7 @@ final class InstallerMediaPopoverController: NSViewController {
             }
         }
         if let volume = InstallerMediaInventory.volumeName(entry.url), !volume.isEmpty {
-            if volume == "VMAUDIO" { return "VirtualMac audio drivers" }
+            if volume == "VMAUDIO" { return "ElseBox audio drivers" }
             if volume.hasPrefix("virtio-win-") { return "Windows VirtIO drivers · \(volume.dropFirst(11))" }
             return volume
         }
