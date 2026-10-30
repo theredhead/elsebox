@@ -190,3 +190,18 @@ Lab. Selecting it enables Windows test-signing and trusts its test certificate i
 guest. It is off by default and cannot be enabled by the ordinary installed-VM hardware UI.
 See GuestTools/WindowsAudio/Provenance.json for the package/source revision and checksums.
 Existing Windows boot profiles and credentials are not changed by this creation workflow.
+
+## Android exploration
+
+Android is a future experimental guest; it is not currently supported or verified in VirtualMac.
+Start by evaluating ARM64 Linux with Waydroid, including the required Binder kernel support
+and software rendering. A longer-term option is a tailored ARM64 Android image booted directly
+through Virtualization.framework, using AOSP Cuttlefish as a reference rather than assuming its
+images work unchanged with Apple's virtual hardware.
+
+The initial milestone is a usable Android desktop with input, networking and audio. Investigate
+accelerated graphics and Google Play availability/licensing separately before promising either.
+Keep any prototype in disposable .asvm bundles and leave existing guest boot profiles unchanged.
+
+References: [Waydroid in a VM](https://docs.waydro.id/faq/get-waydroid-to-work-through-a-vm),
+[AOSP Cuttlefish](https://source.android.com/docs/devices/cuttlefish/get-started).
