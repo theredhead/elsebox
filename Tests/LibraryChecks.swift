@@ -98,7 +98,7 @@ struct LibraryChecks {
         try hardware.write(to: legacy.appendingPathComponent("HardwareModel"))
         try Data("machine fixture".utf8).write(to: legacy.appendingPathComponent("MachineIdentifier"))
         try Data().write(to: legacy.appendingPathComponent("Installed"))
-        var oldSettings = Resources(cpu: 3, memory: 8 * 1_073_741_824)
+        var oldSettings = VMSettings(cpu: 3, memory: 8 * 1_073_741_824)
         oldSettings.diskPath = oldDisk.path
         try JSONEncoder().encode(oldSettings).write(to: legacy.appendingPathComponent("Resources.json"))
         try migration.migrateLegacyIfNeeded(from: legacy)

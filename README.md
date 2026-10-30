@@ -309,3 +309,5 @@ display** (the default, including existing VMs) or **Always start headless**.
 The power button and normal Start command follow this preference; the explicit
 Start Headless command overrides it for that boot. Showing an already-running
 VM never restarts it.
+
+Source layout and dependency boundaries are documented in [ARCHITECTURE.md](ARCHITECTURE.md).

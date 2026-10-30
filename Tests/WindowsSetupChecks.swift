@@ -48,7 +48,7 @@ struct WindowsSetupChecks {
                 xmlString: WindowsAnswerFile.make(username: "tester", password: password, culture: culture),
                 options: [])
         }
-        let settings = Resources(
+        let settings = VMSettings(
             cpu: 4, memory: 8_589_934_592, windowsCulture: "nl-NL", windowsUnattended: true,
             windowsUsername: "tester")
         let saved = String(decoding: try JSONEncoder().encode(settings), as: UTF8.self)

@@ -78,7 +78,7 @@ struct InstallerChecks {
         // Offline cache reuse does not need another metadata fetch or download.
         let offline = FixtureTransport(metadata: [:], body: Data(), counter: TransferCount())
         let cached = try await InstallerMediaService(transport: offline).prepare(
-            bundle: two, settings: Resources(cpu: 2, memory: 2_147_483_648)
+            bundle: two, settings: VMSettings(cpu: 2, memory: 2_147_483_648)
         ) { _, _ in }
         precondition(cached.installationMediaPath == savedFile.path)
         let windows = try VMBundle.create(

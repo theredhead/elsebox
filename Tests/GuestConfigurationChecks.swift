@@ -4,7 +4,7 @@ import Virtualization
 @main @MainActor
 struct GuestConfigurationChecks {
     static func main() throws {
-        let audioSettings = Resources(cpu: 2, memory: 4_294_967_296)
+        let audioSettings = VMSettings(cpu: 2, memory: 4_294_967_296)
         let sound =
             VMAudioConfiguration.devices(resources: audioSettings).first as! VZVirtioSoundDeviceConfiguration
         precondition(sound.streams.count == 1)

@@ -8,7 +8,7 @@ struct SettingsChecks {
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: root) }
         let legacy = try JSONDecoder().decode(
-            Resources.self,
+            VMSettings.self,
             from: Data(
                 #"{"cpu":4,"memory":4294967296,"displayWidth":2560,"displayHeight":1440,"keepHostAspectRatio":true}"#
                     .utf8))
@@ -55,22 +55,26 @@ struct SettingsChecks {
             fatalError("Invalid names must be rejected")
         } catch {}
         var updated = legacy
+        updated.diskPath = disk.path
+        precondition(VMDiskStore.logicalCapacity(for: updated) == 32_000_000_000)
+        precondition(
+            VMHardwareSummary.text(settings: updated, diskCapacity: 32_000_000_000).contains("32 GB disk"))
         updated.startHeadless = true
         updated.pixelsPerInch = 72
         updated.useMacTrackpad = true
         updated.diskPath = disk.path
         updated.restoreImagePath = root.appendingPathComponent("Installer.ipsw").path
         updated.sharedFolders = [share]
-        let restored = try JSONDecoder().decode(Resources.self, from: JSONEncoder().encode(updated))
+        let restored = try JSONDecoder().decode(VMSettings.self, from: JSONEncoder().encode(updated))
         precondition(restored.useMacTrackpad == true)
         precondition(restored.startHeadless == true)
         updated.startHeadless = false
-        let displayStartup = try JSONDecoder().decode(Resources.self, from: JSONEncoder().encode(updated))
+        let displayStartup = try JSONDecoder().decode(VMSettings.self, from: JSONEncoder().encode(updated))
         precondition(displayStartup.startHeadless == false)
         precondition(restored.sharedFolders == [share] && restored.pixelsPerInch == 72)
         precondition(restored.diskPath == disk.path && restored.restoreImagePath == updated.restoreImagePath)
         updated.sharedFolders = []
-        let noShares = try JSONDecoder().decode(Resources.self, from: JSONEncoder().encode(updated))
+        let noShares = try JSONDecoder().decode(VMSettings.self, from: JSONEncoder().encode(updated))
         precondition(noShares.sharedFolders?.isEmpty == true)
         print(
             "Passed: legacy migration, sparse capacity, no overwrite, per-disk identity, share validation, settings round-trip, empty sharing list"
