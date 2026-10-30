@@ -11,6 +11,7 @@ enum WindowsSetupSecret {
         let updated = SecItemUpdate(query as CFDictionary, [kSecValueData: value] as CFDictionary)
         if updated == errSecSuccess { return }
         guard updated == errSecItemNotFound else { throw error(updated) }
+
         var item = query
         item[kSecValueData] = value
         item[kSecAttrAccessible] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly

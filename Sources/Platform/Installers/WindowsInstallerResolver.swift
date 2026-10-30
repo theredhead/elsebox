@@ -69,6 +69,7 @@ final class WindowsInstallerResolver: NSObject, NSWindowDelegate, WKNavigationDe
             guard let values = try await webView.evaluateJavaScript(pageScript) as? [String: String],
                 let checksum = values["sha256"]
             else { return }
+
             let link = pendingDownloadURL?.absoluteString ?? values["url"] ?? ""
             guard !link.isEmpty else { return }
             finish(Result { try Self.image(url: link, checksum: checksum) })

@@ -12,10 +12,12 @@ enum NewVMController {
         alert.addButton(withTitle: "Create…")
         alert.addButton(withTitle: "Cancel")
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+
         let title = view.name.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, let size = Int(view.capacity.stringValue), (8...4096).contains(size) else {
             throw settingsError("Enter a name and a disk capacity from 8 to 4096 GB.")
         }
+
         let preset = view.preset
         var windowsSetup: WindowsSetupView?
         if preset.distribution == .windows {
@@ -34,6 +36,7 @@ enum NewVMController {
             }
             windowsSetup = options
         }
+
         var localISO: URL?
         if !preset.distribution.hasAutomaticInstaller {
             let picker = NSOpenPanel()
@@ -44,6 +47,7 @@ enum NewVMController {
             guard picker.runModal() == .OK, let source = picker.url else { return nil }
             localISO = source
         }
+
         let panel = NSSavePanel()
         panel.title = "Create .asvm Bundle"
         panel.nameFieldStringValue = title.replacingOccurrences(of: "/", with: "-") + ".asvm"
@@ -53,6 +57,7 @@ enum NewVMController {
             UTType(exportedAs: "nl.theredhead.virtualmac.asvm", conformingTo: .package)
         ]
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
+
         let bundle = try VMBundle.create(
             at: url, name: title, capacityGB: size, preset: preset, mediaCache: mediaCache)
         if let windowsSetup {

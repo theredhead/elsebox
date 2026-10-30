@@ -2,6 +2,7 @@
 set -eu
 cd "${0:A:h:h}"
 mkdir -p build/ModuleCache
+python3 scripts/check-readability.py
 python3 scripts/check-architecture.py
 xcrun swiftc -module-cache-path build/ModuleCache -typecheck Sources/Domain/**/*.swift
 python3 scripts/check-bundled-drivers.py
@@ -32,6 +33,10 @@ xcrun swiftc -module-cache-path build/ModuleCache Sources/Domain/Monitoring/VMAc
 build/LibraryOverviewChecks
 xcrun swiftc -module-cache-path build/ModuleCache Sources/Domain/Monitoring/VMNetworkSnapshot.swift Sources/Platform/Monitoring/VMNetworkAddressParser.swift Sources/Platform/Monitoring/VMNetworkAddressSource.swift Tests/NetworkAddressChecks.swift -o build/NetworkAddressChecks
 build/NetworkAddressChecks
+ui_sources=(Sources/**/*.swift)
+ui_sources=("${ui_sources[@]:#Sources/Application/VirtualMacApp.swift}")
+xcrun swiftc -module-cache-path build/ModuleCache -swift-version 5 "${ui_sources[@]}" Tests/PreferencesChecks.swift -o build/PreferencesChecks
+build/PreferencesChecks
 for bootstrap_script in Resources/WindowsBootstrap/*.sh; do
     zsh -n "$bootstrap_script"
 done

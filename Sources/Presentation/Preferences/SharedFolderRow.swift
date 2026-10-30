@@ -1,15 +1,18 @@
 import AppKit
 
+/// Provides top-origin coordinates for the preference page’s folder rows.
 final class SharedFolderListView: NSView {
     override var isFlipped: Bool { true }
 }
 
+/// Owns one shared-folder name/read-only editor and its remove request, without saving or mounting the share.
 @MainActor
 final class SharedFolderRow: NSView {
     private let name: NSTextField
     private let path: String
     private let readOnly: NSButton
     var remove: (() -> Void)?
+
     var share: SharedFolder {
         SharedFolder(
             name: name.stringValue.trimmingCharacters(in: .whitespacesAndNewlines), path: path,
@@ -37,5 +40,6 @@ final class SharedFolderRow: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
     @objc private func removeRow() { remove?() }
 }

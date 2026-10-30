@@ -18,6 +18,7 @@ final class RemovableDisksController: NSObject, NSMenuDelegate {
         let device: VZUSBMassStorageDevice
         let readOnly: Bool
     }
+
     private let menu: NSMenu
     private weak var machine: VZVirtualMachine?
     private var bootDisk: URL?
@@ -25,7 +26,9 @@ final class RemovableDisksController: NSObject, NSMenuDelegate {
     private var installationDevice: VZUSBMassStorageDevice?
     var guestToolsURL: URL?
     var installationMediaDidEject: (() throws -> Void)?
+
     var canMountImages: Bool { canChangeDevices }
+
     private var setupBusy = false
     private(set) var operationInProgress = false
     private var mounted: [String: MountedDisk] = [:]
@@ -52,6 +55,7 @@ final class RemovableDisksController: NSObject, NSMenuDelegate {
             ejectInstallationMedia()
             return
         }
+
         let item = NSMenuItem()
         item.representedObject = id
         unmountImage(item)
@@ -121,6 +125,7 @@ final class RemovableDisksController: NSObject, NSMenuDelegate {
             item.toolTip = disk.url.path
             item.isEnabled = canChangeDevices
         }
+
         let recent = RecentDiskImages.load()
         if !recent.isEmpty {
             menu.addItem(.separator())
@@ -179,6 +184,7 @@ final class RemovableDisksController: NSObject, NSMenuDelegate {
 
     @objc private func mountImage() {
         guard canChangeDevices else { return }
+
         let panel = NSOpenPanel()
         panel.title = "Mount Disk Image in VirtualMac"
         panel.message =
@@ -216,6 +222,7 @@ final class RemovableDisksController: NSObject, NSMenuDelegate {
                     guard url.pathExtension.lowercased() != "dmg" else {
                         throw settingsError("Convert this DMG to a RAW image before connecting it.")
                     }
+
                     let attachment = try VZDiskImageStorageDeviceAttachment(
                         url: canonical, readOnly: readOnly)
                     let device = VZUSBMassStorageDevice(
@@ -233,6 +240,7 @@ final class RemovableDisksController: NSObject, NSMenuDelegate {
         guard canChangeDevices, let id = sender.representedObject as? String,
             let disk = mounted[id], let controller = disk.device.usbController
         else { return }
+
         let alert = NSAlert()
         alert.messageText = "Disconnect \(disk.url.lastPathComponent)?"
         alert.informativeText =

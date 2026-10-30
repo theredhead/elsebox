@@ -124,10 +124,15 @@ private final class VMLibraryChartsView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard let latest = samples.last else { return }
+
         let cpu = samples.map { $0.cpuPercent }
+
         let memory = samples.map { $0.footprintBytes }
+
         let reads = samples.map { $0.readBytesPerSecond }
+
         let writes = samples.map { $0.writeBytesPerSecond }
+
         let labels = [
             "CPU  \(Int(latest.cpuPercent))%", "RAM  \(bytes(latest.footprintBytes))",
             "Disk  R \(bytes(latest.readBytesPerSecond))/s · W \(bytes(latest.writeBytesPerSecond))/s",

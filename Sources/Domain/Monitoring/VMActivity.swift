@@ -34,6 +34,7 @@ struct VMActivityHistory {
             samples.removeAll()
             return
         }
+
         let interval = counters.timestamp - previous.timestamp
         samples.append(
             VMActivitySample(

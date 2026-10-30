@@ -18,6 +18,7 @@ final class GuestIconView: NSView {
         super.draw(dirtyRect)
         NSGraphicsContext.saveGraphicsState()
         defer { NSGraphicsContext.restoreGraphicsState() }
+
         let transform = NSAffineTransform()
         transform.scaleX(by: bounds.width / 110, yBy: bounds.height / 110)
         transform.concat()

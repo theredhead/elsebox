@@ -4,6 +4,7 @@ import Foundation
 /// Shared content-addressed installers. VM files retain media:// references, not copies.
 struct InstallerMediaCache {
     let root: URL
+
     static var shared: InstallerMediaCache {
         return InstallerMediaCache(root: VMDiskStore.directory.appendingPathComponent("Install Media"))
     }
@@ -16,10 +17,12 @@ struct InstallerMediaCache {
         let prefix = root.standardizedFileURL.resolvingSymlinksInPath().path + "/"
         let path = file.standardizedFileURL.resolvingSymlinksInPath().path
         guard path.hasPrefix(prefix) else { return nil }
+
         let parts = String(path.dropFirst(prefix.count)).split(separator: "/")
         guard parts.count == 2, Self.validDigest(String(parts[0])),
             parts[1] == "Installer.iso" || parts[1] == "Installer.ipsw"
         else { return nil }
+
         var components = URLComponents()
         components.scheme = "media"
         components.host = String(parts[0])
@@ -34,10 +37,12 @@ struct InstallerMediaCache {
         else {
             throw settingsError("Invalid shared installer reference.")
         }
+
         let filename = String(components.path.dropFirst())
         guard filename == "Installer.iso" || filename == "Installer.ipsw" else {
             throw settingsError("Invalid installer filename.")
         }
+
         let file = root.appendingPathComponent(digest).appendingPathComponent(filename).standardizedFileURL
             .resolvingSymlinksInPath()
         guard file.path.hasPrefix(root.standardizedFileURL.resolvingSymlinksInPath().path + "/") else {
@@ -48,6 +53,7 @@ struct InstallerMediaCache {
 
     func importFile(_ source: URL) throws -> URL {
         if reference(for: source) != nil { return source }
+
         let digest = try Self.sha256(of: source)
         let suffix = source.pathExtension.lowercased() == "ipsw" ? "ipsw" : "iso"
         let target = file(digest: digest, extension: suffix)
@@ -85,6 +91,7 @@ struct InstallerMediaCache {
         guard let reference = reference(for: file) else {
             throw settingsError("Installer is outside the shared cache.")
         }
+
         let index = indexFile(key)
         try FileManager.default.createDirectory(
             at: index.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -119,6 +126,7 @@ struct InstallerMediaCache {
     static func sha256(of file: URL) throws -> String {
         let handle = try FileHandle(forReadingFrom: file)
         defer { try? handle.close() }
+
         var hash = SHA256()
         while let data = try handle.read(upToCount: 1024 * 1024), !data.isEmpty {
             try Task.checkCancellation()
@@ -130,9 +138,11 @@ struct InstallerMediaCache {
     private func indexFile(_ key: String) -> URL {
         return root.appendingPathComponent("Index/\(Self.keyDigest(key)).txt")
     }
+
     private static func keyDigest(_ key: String) -> String {
         return SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
     }
+
     private static func validDigest(_ text: String) -> Bool {
         return text.count == 64 && text.allSatisfy { "0123456789abcdef".contains($0) }
     }

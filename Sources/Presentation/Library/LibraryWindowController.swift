@@ -1,6 +1,7 @@
 import AppKit
 import Virtualization
 
+/// Owns library selection and detail/overview presentation; VM execution and app commands are supplied by callbacks.
 @MainActor
 final class LibraryWindowController: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegate,
     NSWindowDelegate, NSToolbarDelegate
@@ -11,16 +12,20 @@ final class LibraryWindowController: NSObject, NSCollectionViewDataSource, NSCol
     private let split = NSSplitViewController()
     private let detailHost = NSView()
     private let message = NSTextField(labelWithString: "VM Library")
-    private var detail: VMStoppedView?
+    private var detail: VMDetailsView?
     private var detailURL: URL?
     private let overview = VMLibraryOverviewView(frame: .zero)
+
     var mediaCleanupRestriction: ((URL) -> String?)? {
         didSet { overview.mediaCleanupRestriction = mediaCleanupRestriction }
     }
+
     var mediaURL = InstallerMediaCache.shared.root
+
     var overviewActivity: (() -> VMLibraryActivityInput)? {
         didSet { overview.activityInput = overviewActivity }
     }
+
     private var reloading = false
     private let newItem = NSToolbarItem.Identifier("NewVM")
     var machines: [VMBundle] = []
@@ -45,6 +50,7 @@ final class LibraryWindowController: NSObject, NSCollectionViewDataSource, NSCol
     var onNew: (() -> Void)?
     var onActivate: (() -> Void)?
     var onSelection: (() -> Void)?
+
     var selected: VMBundle? {
         guard let index = collection.selectionIndexPaths.first?.item, machines.indices.contains(index) else {
             return nil
@@ -53,85 +59,19 @@ final class LibraryWindowController: NSObject, NSCollectionViewDataSource, NSCol
     }
 
     override init() {
-        window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1120, height: 760),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered, defer: false)
+        window = LibraryWindowLayout.make(
+            collection: collection, split: split, detailHost: detailHost,
+            message: message, overview: overview)
         super.init()
-        window.title = "VirtualMac — VM Library"
-        window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 980, height: 680)
         window.delegate = self
-        window.titleVisibility = .hidden
-        window.toolbarStyle = .unified
-        window.titlebarSeparatorStyle = .none
-        let sidebar = NSViewController()
-        sidebar.view = NSView()
-        let flow = NSCollectionViewFlowLayout()
-        flow.itemSize = NSSize(width: 304, height: 100)
-        flow.minimumLineSpacing = 4
-        flow.sectionInset = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
-        collection.collectionViewLayout = flow
-        collection.autoresizingMask = [.width]
-        collection.backgroundColors = [.clear]
-        collection.isSelectable = true
-        collection.allowsEmptySelection = true
-        collection.allowsMultipleSelection = false
         collection.dataSource = self
         collection.delegate = self
-        collection.register(VMLibraryCollectionItem.self, forItemWithIdentifier: itemIdentifier)
-        collection.setAccessibilityLabel("Virtual machines")
         collection.onEmptyClick = { [weak self] in
             self?.updateDetail()
             self?.onSelection?()
         }
         collection.onDoubleClick = { [weak self] in self?.showVM() }
-        let scroll = NSScrollView()
-        scroll.documentView = collection
-        scroll.hasVerticalScroller = true
-        scroll.drawsBackground = false
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        sidebar.view.addSubview(scroll)
-        NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: sidebar.view.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: sidebar.view.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: sidebar.view.topAnchor),
-            scroll.bottomAnchor.constraint(equalTo: sidebar.view.bottomAnchor),
-        ])
-        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebar)
-        sidebarItem.allowsFullHeightLayout = true
-        sidebarItem.titlebarSeparatorStyle = .none
-        sidebarItem.minimumThickness = 320
-        sidebarItem.maximumThickness = 440
-        sidebarItem.preferredThicknessFraction = 0.34
-        let main = NSViewController()
-        main.view = NSView()
-        for view in [detailHost, message] {
-            view.translatesAutoresizingMaskIntoConstraints = false
-            main.view.addSubview(view)
-        }
-        overview.translatesAutoresizingMaskIntoConstraints = false
-        detailHost.addSubview(overview)
-        NSLayoutConstraint.activate([
-            detailHost.leadingAnchor.constraint(equalTo: main.view.leadingAnchor),
-            detailHost.trailingAnchor.constraint(equalTo: main.view.trailingAnchor),
-            detailHost.topAnchor.constraint(equalTo: main.view.safeAreaLayoutGuide.topAnchor),
-            detailHost.bottomAnchor.constraint(equalTo: message.topAnchor, constant: -12),
-            message.leadingAnchor.constraint(equalTo: main.view.leadingAnchor, constant: 20),
-            message.trailingAnchor.constraint(equalTo: main.view.trailingAnchor, constant: -20),
-            message.bottomAnchor.constraint(equalTo: main.view.bottomAnchor, constant: -12),
-            overview.leadingAnchor.constraint(equalTo: detailHost.leadingAnchor),
-            overview.trailingAnchor.constraint(equalTo: detailHost.trailingAnchor),
-            overview.topAnchor.constraint(equalTo: detailHost.topAnchor),
-            overview.bottomAnchor.constraint(equalTo: detailHost.bottomAnchor),
-        ])
-        message.textColor = .secondaryLabelColor
-        let detailItem = NSSplitViewItem(viewController: main)
-        detailItem.minimumThickness = 600
-        detailItem.titlebarSeparatorStyle = .none
-        split.addSplitViewItem(sidebarItem)
-        split.addSplitViewItem(detailItem)
-        window.contentViewController = split
+
         let toolbar = NSToolbar(identifier: "LibraryToolbar")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
@@ -167,6 +107,7 @@ final class LibraryWindowController: NSObject, NSCollectionViewDataSource, NSCol
             return NSTrackingSeparatorToolbarItem(identifier: id, splitView: split.splitView, dividerIndex: 0)
         }
         guard id == newItem else { return nil }
+
         let item = NSToolbarItem(itemIdentifier: id)
         item.label = "Create VM"
         let button = NSButton(
@@ -216,7 +157,7 @@ final class LibraryWindowController: NSObject, NSCollectionViewDataSource, NSCol
         overview.isHidden = true
         if detailURL != selected.url {
             detail?.removeFromSuperview()
-            let view = VMStoppedView(bundle: selected)
+            let view = VMDetailsView(bundle: selected)
             view.onStart = { [weak self] in self?.onStart?(selected) }
             view.onDownloadAction = { [weak self] in self?.onDownloadAction?(selected) }
             view.onShutDown = { [weak self] in self?.onShutDown?(selected) }
@@ -285,8 +226,11 @@ final class LibraryWindowController: NSObject, NSCollectionViewDataSource, NSCol
         onActivate?()
         updateDetail()
     }
+
     func windowDidChangeOcclusionState(_ notification: Notification) { updateDetail() }
+
     func windowWillClose(_ notification: Notification) { detail?.setLivePreview(nil) }
+
     @objc private func newVM() { onNew?() }
     @objc private func showVM() {
         if let selected, state?(selected.id) == "Running" { onShow?(selected) }

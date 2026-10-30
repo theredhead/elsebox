@@ -30,6 +30,7 @@ struct InstallerCatalog {
                     $0.lastPathComponent.hasSuffix(suffix) && $0.host == "cdimage.ubuntu.com"
                 })
             else { throw settingsError("Ubuntu did not publish a matching ARM64 ISO link.") }
+
             let base = iso.deletingLastPathComponent()
             let sums = String(
                 decoding: try await fetch(base.appendingPathComponent("SHA256SUMS")), as: UTF8.self)

@@ -21,6 +21,7 @@ final class VMThumbnailController {
             return
         }
         guard timer == nil else { return }
+
         let timer = Timer(timeInterval: 30, repeats: true) { [weak self, weak view] _ in
             Task { @MainActor in
                 guard let self, let view else { return }
@@ -39,6 +40,7 @@ final class VMThumbnailController {
         else { return }
         capturing = true
         defer { capturing = false }
+
         let token = generation
         do {
             // Own-process enumeration avoids requesting access to the desktop or other applications.
@@ -46,6 +48,7 @@ final class VMThumbnailController {
             guard
                 let source = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) })
             else { return }
+
             let rect = view.convert(view.bounds, to: nil)
             let configuration = SCStreamConfiguration()
             let scale = 512 / max(window.frame.width, window.frame.height)
@@ -57,6 +60,7 @@ final class VMThumbnailController {
                 contentFilter: SCContentFilter(desktopIndependentWindow: source), configuration: configuration
             )
             guard token == generation, timer != nil else { return }
+
             let xScale = CGFloat(image.width) / window.frame.width
             let yScale = CGFloat(image.height) / window.frame.height
             let crop = CGRect(
@@ -64,6 +68,7 @@ final class VMThumbnailController {
                 width: rect.width * xScale, height: rect.height * yScale
             ).integral
             guard let viewport = image.cropping(to: crop) else { return }
+
             let thumbnailScale = 256 / max(CGFloat(viewport.width), CGFloat(viewport.height))
             let width = max(1, Int((CGFloat(viewport.width) * thumbnailScale).rounded()))
             let height = max(1, Int((CGFloat(viewport.height) * thumbnailScale).rounded()))
@@ -75,6 +80,7 @@ final class VMThumbnailController {
             context.interpolationQuality = .high
             context.draw(viewport, in: CGRect(x: 0, y: 0, width: width, height: height))
             guard let thumbnail = context.makeImage() else { return }
+
             let bitmap = NSBitmapImageRep(cgImage: thumbnail)
             guard let data = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.8]) else {
                 return

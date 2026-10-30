@@ -10,7 +10,9 @@ final class VMNetworkMonitor {
     private var current: VMNetworkSnapshot?
     private var lastKnown: VMNetworkSnapshot?
     var didChange: (() -> Void)?
+
     var snapshot: VMNetworkSnapshot? { timer == nil ? lastKnown : current }
+
     var isLive: Bool { timer != nil && current != nil }
 
     init(bundleURL: URL) {
@@ -48,6 +50,7 @@ final class VMNetworkMonitor {
             return
         }
         guard addresses != current?.addresses else { return }
+
         let snapshot = VMNetworkSnapshot(macAddresses: macAddresses, addresses: addresses, observedAt: Date())
         current = snapshot
         lastKnown = snapshot

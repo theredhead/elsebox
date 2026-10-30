@@ -10,6 +10,7 @@ enum BundledGuestTools {
 
     static func removeLegacyCacheCopy(cache: InstallerMediaCache, machines: [VMBundle]) throws {
         guard let imageURL, try InstallerMediaCache.sha256(of: imageURL) == audioImageDigest else { return }
+
         let old = cache.file(digest: audioImageDigest, extension: "iso")
         guard FileManager.default.fileExists(atPath: old.path) else { return }
         for machine in machines {

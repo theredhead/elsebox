@@ -69,6 +69,7 @@ final class VMActivityView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
         guard sample != nil else { return }
+
         let symbols = ["cpu", "memorychip", "internaldrive"]
         for (index, symbol) in symbols.enumerated() {
             let x = CGFloat(index) * 82
@@ -78,9 +79,13 @@ final class VMActivityView: NSView {
                 .draw(in: NSRect(x: x, y: 7, width: 14, height: 14))
         }
         guard !history.samples.isEmpty else { return }
+
         let cpu = history.samples.map { $0.cpuPercent }
+
         let memory = history.samples.map { $0.footprintBytes }
+
         let reads = history.samples.map { $0.readBytesPerSecond }
+
         let writes = history.samples.map { $0.writeBytesPerSecond }
         graph(
             cpu, at: NSRect(x: 20, y: 4, width: 50, height: 20),

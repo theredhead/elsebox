@@ -1,5 +1,6 @@
 import AppKit
 
+/// Collects a new machine’s name, preset and capacity before the creation workflow allocates files.
 @MainActor
 final class NewVMOptionsView: NSView {
     private let distribution = NSPopUpButton()
@@ -7,6 +8,7 @@ final class NewVMOptionsView: NSView {
     let name = NSTextField()
     let capacity = NSTextField()
     private let summary = NSTextField(labelWithString: "")
+
     var preset: VMStarterPreset {
         return VMStarterPreset(
             distribution: GuestDistribution.allCases[distribution.indexOfSelectedItem],

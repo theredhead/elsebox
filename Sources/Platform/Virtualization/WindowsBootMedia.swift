@@ -23,6 +23,7 @@ enum WindowsBootMedia {
         guard let path = resources.installationMediaPath else {
             throw settingsError("Windows installer is missing.")
         }
+
         let iso = URL(fileURLWithPath: path)
         let key = iso.deletingLastPathComponent().lastPathComponent
         let folder = bundle.mediaCache.root.appendingPathComponent("Windows Bootstrap/\(key)")
@@ -61,6 +62,7 @@ enum WindowsBootMedia {
 
     static func rememberDrivers(bundle: VMBundle, resources: VMSettings) throws {
         guard let path = resources.driverMediaPath else { return }
+
         let digest = URL(fileURLWithPath: path).deletingLastPathComponent().lastPathComponent
         try Data(digest.utf8).write(
             to: bundle.url.appendingPathComponent("WindowsDriverSHA256"), options: .atomic)
@@ -70,6 +72,7 @@ enum WindowsBootMedia {
         guard let root = Bundle.main.resourceURL?.appendingPathComponent("WindowsBootstrap") else {
             return false
         }
+
         let image = bundle.url.appendingPathComponent("WindowsBootstrap.img")
         guard FileManager.default.fileExists(atPath: image.path) else { return false }
         for attempt in 0..<4 {
@@ -102,6 +105,7 @@ enum WindowsBootMedia {
         if !FileManager.default.fileExists(atPath: target.path) {
             try HostFileOperations.copyPreservingAllocation(from: source, to: target)
         }
+
         let bundled = resources.automaticWindowsDrivers == true
         let driverKey =
             bundled
@@ -143,6 +147,7 @@ enum WindowsBootMedia {
             let culture = WindowsCulture(rawValue: resources.windowsCulture ?? "en-US"),
             let root = Bundle.main.resourceURL?.appendingPathComponent("WindowsBootstrap")
         else { throw settingsError("Windows automatic setup is incomplete. Create a new Windows VM.") }
+
         let password = try WindowsSetupSecret.read(for: bundle.id)
         let answer = try WindowsAnswerFile.make(
             username: username, password: password, culture: culture,
@@ -153,6 +158,7 @@ enum WindowsBootMedia {
             at: temporary, withIntermediateDirectories: false,
             attributes: [.posixPermissions: 0o700])
         defer { try? FileManager.default.removeItem(at: temporary) }
+
         let answerURL = temporary.appendingPathComponent("Unattend.xml")
         try Data(answer.utf8).write(to: answerURL, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: answerURL.path)

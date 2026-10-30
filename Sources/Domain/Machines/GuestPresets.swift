@@ -22,7 +22,9 @@ enum GuestDistribution: String, Codable, CaseIterable {
     }
 
     var usesEFI: Bool { return self != .macOS }
+
     var isLinux: Bool { return usesEFI && self != .windows }
+
     var hasAutomaticInstaller: Bool { return self != .arch && self != .customLinux }
 
     var installerSelectionTitle: String {
@@ -80,9 +82,11 @@ enum GuestRole: String, Codable, CaseIterable {
 struct VMStarterPreset {
     var distribution: GuestDistribution
     var role: GuestRole
+
     static var macOS: VMStarterPreset { return VMStarterPreset(distribution: .macOS, role: .desktop) }
 
     var cpu: Int { return role == .desktop ? 4 : 2 }
+
     var memoryGiB: Int {
         if distribution == .macOS { return 4 }
         switch role {
@@ -91,6 +95,7 @@ struct VMStarterPreset {
         case .desktop: return 8
         }
     }
+
     var diskGB: Int {
         if distribution == .macOS { return 50 }
         switch role {
@@ -99,5 +104,6 @@ struct VMStarterPreset {
         case .desktop: return 64
         }
     }
+
     var title: String { return distribution == .macOS ? "macOS" : "\(distribution.title) — \(role.title)" }
 }

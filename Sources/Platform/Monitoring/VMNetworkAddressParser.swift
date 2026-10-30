@@ -6,6 +6,7 @@ enum VMNetworkAddressParser {
     static func mac(_ value: String) -> String? {
         let parts = value.split(separator: ",").last?.split(separator: ":") ?? []
         guard parts.count == 6 else { return nil }
+
         var normalized: [String] = []
         for part in parts {
             guard (1...2).contains(part.count), let byte = UInt8(part, radix: 16) else { return nil }
@@ -39,6 +40,7 @@ enum VMNetworkAddressParser {
             guard let at = parts.firstIndex(of: "at"), at > 0, parts.indices.contains(at + 1),
                 let hardware = mac(parts[at + 1])
             else { continue }
+
             let ip = parts[at - 1].trimmingCharacters(in: CharacterSet(charactersIn: "()"))
             if validIP(ip) { result[hardware, default: []].insert(ip) }
         }
@@ -52,6 +54,7 @@ enum VMNetworkAddressParser {
 
     private static func validIP(_ value: String) -> Bool {
         guard let first = value.split(separator: "%", maxSplits: 1).first else { return false }
+
         let literal = String(first)
         var ipv4 = in_addr()
         var ipv6 = in6_addr()

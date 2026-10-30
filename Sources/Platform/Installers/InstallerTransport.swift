@@ -2,6 +2,7 @@ import Foundation
 
 protocol InstallerTransport {
     func data(from url: URL) async throws -> Data
+
     func download(from url: URL, progress: @escaping @Sendable (Double?) -> Void) async throws -> URL
 }
 

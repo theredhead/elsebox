@@ -13,6 +13,7 @@ actor InstallerMediaService {
         sha256: "303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d")
     private let windowsInstaller: (@Sendable () async throws -> InstallerImage)?
     private let transport: any InstallerTransport
+
     init(
         transport: any InstallerTransport = HTTPInstallerTransport(),
         windowsInstaller: (@Sendable () async throws -> InstallerImage)? = nil
@@ -106,6 +107,7 @@ actor InstallerMediaService {
             try cache.remember(existing, for: key)
             return selecting(existing, in: settings, linux: true)
         }
+
         let temporary = try await transport.download(from: image.url) {
             progress("Downloading \(bundle.distribution.title)…", $0)
         }
@@ -128,6 +130,7 @@ actor InstallerMediaService {
         guard settings.bootFromInstaller != false, settings.installationMediaPath == nil else {
             return settings
         }
+
         let cache = bundle.mediaCache
         let culture = WindowsCulture(rawValue: settings.windowsCulture ?? "en-US") ?? .englishUS
         let key = culture.cacheKey
@@ -147,6 +150,7 @@ actor InstallerMediaService {
             try cache.remember(existing, for: key)
             return selecting(existing, in: settings, linux: true)
         }
+
         let temporary = try await transport.download(from: image.url) {
             progress("Downloading Windows 11 ARM64…", $0)
         }

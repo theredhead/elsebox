@@ -12,6 +12,7 @@ enum VMLibraryStorage {
         let roots = Set(vmURLs.map { $0.standardizedFileURL.resolvingSymlinksInPath() }).sorted {
             $0.path.count < $1.path.count
         }
+
         var counted: [URL] = []
         var vmBytes: Int64 = 0
         for root in roots where !counted.contains(where: { root.path.hasPrefix($0.path + "/") }) {
@@ -19,6 +20,7 @@ enum VMLibraryStorage {
             vmBytes += try allocatedBytes(at: root)
             counted.append(root)
         }
+
         let mediaBytes =
             counted.contains(where: { media.path.hasPrefix($0.path + "/") })
             ? 0 : try allocatedBytes(at: media)
@@ -27,6 +29,7 @@ enum VMLibraryStorage {
 
     private static func allocatedBytes(at root: URL) throws -> Int64 {
         guard FileManager.default.fileExists(atPath: root.path) else { return 0 }
+
         let keys: Set<URLResourceKey> = [
             .isRegularFileKey, .isSymbolicLinkKey,
             .totalFileAllocatedSizeKey, .fileAllocatedSizeKey,
@@ -41,6 +44,7 @@ enum VMLibraryStorage {
                     return false
                 })
         else { throw CocoaError(.fileReadUnknown) }
+
         var bytes: Int64 = 0
         for case let file as URL in files {
             let values = try file.resourceValues(forKeys: keys)

@@ -1,18 +1,24 @@
 import Foundation
 
+/// Owns the known-bundle registry and migration bookkeeping so filesystem discovery is separate from windows and running sessions.
 final class VMLibrary {
     struct Registry: Codable {
         var version = 1
         var paths: [String] = []
         var legacyMigrationCompleted = false
     }
+
     let root: URL
+
     var mediaCache: InstallerMediaCache {
         return InstallerMediaCache(root: root.appendingPathComponent("Install Media"))
     }
+
     private var registry = Registry()
     private(set) var machines: [VMBundle] = []
+
     var registryURL: URL { root.appendingPathComponent("Registry.json") }
+
     var defaultLocation: URL { root.appendingPathComponent("Virtual Machines", isDirectory: true) }
 
     init(root: URL = VMDiskStore.directory) { self.root = root }
@@ -69,6 +75,7 @@ final class VMLibrary {
     /// Copy the previous single-VM setup once; the original files remain as a backup.
     func migrateLegacyIfNeeded(from legacy: URL) throws {
         guard !registry.legacyMigrationCompleted else { return }
+
         let fm = FileManager.default
         let oldSettingsURL = legacy.appendingPathComponent("Resources.json")
         let defaultDisk = legacy.appendingPathComponent("Disk.img")
@@ -77,6 +84,7 @@ final class VMLibrary {
             try persist()
             return
         }
+
         var settings =
             fm.fileExists(atPath: oldSettingsURL.path)
             ? try JSONDecoder().decode(VMSettings.self, from: Data(contentsOf: oldSettingsURL))
@@ -84,11 +92,13 @@ final class VMLibrary {
         if settings.showsStatusBar == nil {
             settings.showsStatusBar = UserDefaults.standard.object(forKey: "showsStatusBar") as? Bool
         }
+
         let disk = settings.diskPath.map { URL(fileURLWithPath: $0) } ?? defaultDisk
         guard fm.fileExists(atPath: disk.path) else {
             throw settingsError(
                 "The previous startup disk is missing. Locate it before migrating the previous VM.")
         }
+
         let destination = defaultLocation.appendingPathComponent("VirtualMac.asvm")
         if fm.fileExists(atPath: destination.path) {
             // Recover a migration completed before a registry write was interrupted.
@@ -97,6 +107,7 @@ final class VMLibrary {
             try persist()
             return
         }
+
         let staging = defaultLocation.appendingPathComponent(".migration-\(UUID().uuidString).asvm")
         try fm.createDirectory(at: staging, withIntermediateDirectories: false)
         do {
@@ -123,6 +134,7 @@ final class VMLibrary {
                         name: "Shared", path: legacy.appendingPathComponent("Shared").path, readOnly: false)
                 ]
             }
+
             let manifest = VMManifest(id: UUID(), name: "VirtualMac")
             try JSONEncoder().encode(manifest).write(
                 to: staging.appendingPathComponent("VM.json"), options: .atomic)

@@ -47,6 +47,7 @@ final class VMDetailPowerButton: NSButton {
         glyph.layer?.shadowRadius = 6
         glyph.layer?.shadowOpacity = poweredOn ? 0.65 : 0
         guard poweredOn, !reduceMotion else { return }
+
         let brightness = CABasicAnimation(keyPath: "opacity")
         brightness.fromValue = 0.45
         brightness.toValue = 1
@@ -63,6 +64,7 @@ final class VMDetailPowerButton: NSButton {
     }
 }
 
+/// Keeps the power symbol display-only so all mouse and keyboard interaction belongs to its button.
 @MainActor
 private final class VMDetailPowerGlyph: NSImageView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }

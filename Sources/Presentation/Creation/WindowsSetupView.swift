@@ -37,6 +37,7 @@ final class WindowsSetupView: NSView {
             control.frame = NSRect(x: 0, y: y, width: 400, height: 26)
             addSubview(control)
         }
+
         let terms = NSButton(title: "Read…", target: self, action: #selector(readTerms))
         terms.frame = NSRect(x: 405, y: 25, width: 90, height: 26)
         addSubview(terms)
@@ -67,6 +68,7 @@ final class WindowsSetupView: NSView {
         guard password.stringValue == confirmation.stringValue else {
             throw settingsError("The passwords do not match.")
         }
+
         let name = username.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         try WindowsAnswerFile.validateUsername(name)
         try WindowsSetupSecret.save(password.stringValue, for: id)

@@ -5,6 +5,7 @@ import Virtualization
 enum VMAudioConfiguration {
     static func devices(resources: VMSettings) -> [VZAudioDeviceConfiguration] {
         guard resources.audioOutputEnabled != false else { return [] }
+
         let output = VZVirtioSoundDeviceOutputStreamConfiguration()
         output.sink = VZHostAudioOutputStreamSink()
         let sound = VZVirtioSoundDeviceConfiguration()

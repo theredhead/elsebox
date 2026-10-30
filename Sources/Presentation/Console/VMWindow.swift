@@ -4,5 +4,6 @@ import AppKit
 @MainActor
 final class VMWindow: NSWindow {
     override var canBecomeKey: Bool { true }
+
     override var canBecomeMain: Bool { true }
 }

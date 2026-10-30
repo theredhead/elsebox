@@ -10,16 +10,20 @@ struct InstallerPreparationState {
 /// Owns per-VM background work; only media results are merged into the latest saved settings.
 @MainActor
 enum InstallerPreparation {
+    /// Keeps one VM’s asynchronous preparation task and progress together; concurrent edits are merged without replacing the active job.
     private final class Job {
         var state = InstallerPreparationState(message: "Preparing installer…", active: true)
         var task: Task<Void, Error>?
     }
+
     private static var jobs: [UUID: Job] = [:]
     static var stateDidChange: (() -> Void)?
     static var progressDidChange: (() -> Void)?
 
     static func state(for id: UUID) -> InstallerPreparationState? { jobs[id]?.state }
+
     static func isPreparing(_ id: UUID) -> Bool { jobs[id]?.state.active == true }
+
     static var hasActiveDownloads: Bool { jobs.values.contains { $0.state.active } }
 
     static func canStart(bundle: VMBundle) -> Bool {
@@ -42,6 +46,7 @@ enum InstallerPreparation {
             stateDidChange?()
             return
         }
+
         let job = Job()
         jobs[bundle.id] = job
         job.task = Task {

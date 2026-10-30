@@ -11,6 +11,7 @@ enum HostFileOperations {
     static func createSparseDisk(at url: URL, capacityBytes: UInt64) throws {
         let descriptor = open(url.path, O_WRONLY | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR)
         guard descriptor >= 0 else { throw posixError() }
+
         let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         do {
             try handle.truncate(atOffset: capacityBytes)

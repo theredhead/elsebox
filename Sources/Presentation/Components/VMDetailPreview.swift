@@ -5,5 +5,6 @@ import Virtualization
 @MainActor
 final class VMDetailPreview: VZVirtualMachineView {
     override var acceptsFirstResponder: Bool { false }
+
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }

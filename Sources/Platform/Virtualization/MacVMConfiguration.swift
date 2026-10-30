@@ -29,6 +29,7 @@ enum MacVMConfiguration {
             try VZMacMachineIdentifier().dataRepresentation.write(
                 to: metadata.appendingPathComponent("MachineIdentifier"), options: .atomic)
         }
+
         let minimum = VMSettings(
             cpu: requirements.minimumSupportedCPUCount, memory: requirements.minimumSupportedMemorySize)
         try JSONEncoder().encode(minimum).write(
@@ -60,6 +61,7 @@ enum MacVMConfiguration {
         else {
             throw settingsError("The saved VM identity is invalid or unsupported on this Mac.")
         }
+
         let limits = try VMResourceLimits.load(metadata: metadata, distribution: bundle.distribution)
         // Raise preferences to guest minimums and constrain them to this host.
         let cpuCount = min(max(resources.cpu, limits.cpu.lowerBound), limits.cpu.upperBound)
@@ -82,6 +84,7 @@ enum MacVMConfiguration {
         if #available(macOS 15.0, *) {
             configuration.usbControllers = [VZXHCIControllerConfiguration()]
         }
+
         let graphics = VZMacGraphicsDeviceConfiguration()
         let displayWidth = resources.displayWidth ?? 1920
         let displayHeight = resources.displayHeight ?? 1080
@@ -102,6 +105,7 @@ enum MacVMConfiguration {
         } else {
             configuration.pointingDevices = [VZUSBScreenCoordinatePointingDeviceConfiguration()]
         }
+
         let network = VZVirtioNetworkDeviceConfiguration()
         network.attachment = VZNATNetworkDeviceAttachment()
         configuration.networkDevices = [network]

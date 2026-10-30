@@ -6,6 +6,7 @@ enum VMDiskStore {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("nl.theredhead.virtualmac", isDirectory: true)
     }
+
     static var defaultDisk: URL { directory.appendingPathComponent("Disk.img") }
 
     static func disk(for settings: VMSettings) -> URL {
@@ -34,6 +35,7 @@ enum VMDiskStore {
         guard values.isRegularFile == true, (values.fileSize ?? 0) > 0 else {
             throw settingsError("Choose a nonempty RAW disk image created by VirtualMac.")
         }
+
         let metadata = metadata(for: disk)
         let fm = FileManager.default
         guard
@@ -51,6 +53,7 @@ enum VMDiskStore {
         guard (8...4096).contains(capacityGB) else {
             throw settingsError("New disk capacity must be between 8 and 4096 GB.")
         }
+
         let fm = FileManager.default
         let metadata = metadata(for: disk)
         let legacyDefault = metadata == directory || metadata.pathExtension.lowercased() == "asvm"
@@ -86,6 +89,7 @@ enum VMDiskStore {
             guard names.insert(share.name.lowercased()).inserted else {
                 throw settingsError("Shared folder names must be unique: \(share.name)")
             }
+
             let values = try URL(fileURLWithPath: share.path).resourceValues(forKeys: [.isDirectoryKey])
             guard values.isDirectory == true else {
                 throw settingsError("Shared folder is unavailable: \(share.path)")

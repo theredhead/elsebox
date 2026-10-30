@@ -18,6 +18,7 @@ struct VMResourceLimits {
                 VMSettings.self,
                 from: Data(contentsOf: metadata.appendingPathComponent("MinimumResources.json")))
         }
+
         let minCPU = max(minimum.cpu, VZVirtualMachineConfiguration.minimumAllowedCPUCount)
         let maxCPU = min(
             ProcessInfo.processInfo.processorCount,

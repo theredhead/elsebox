@@ -4,12 +4,17 @@ struct VMBundle: Identifiable {
     let url: URL
     let manifest: VMManifest
     var mediaCache: InstallerMediaCache = .shared
+
     var id: UUID { manifest.id }
+
     var name: String { manifest.name }
+
     var distribution: GuestDistribution { return manifest.distribution ?? .macOS }
+
     var preset: VMStarterPreset {
         return VMStarterPreset(distribution: distribution, role: manifest.role ?? .desktop)
     }
+
     var settingsURL: URL { url.appendingPathComponent("Resources.json") }
 
     static func open(_ url: URL, mediaCache: InstallerMediaCache = .shared) throws -> VMBundle {
@@ -17,11 +22,13 @@ struct VMBundle: Identifiable {
         guard url.pathExtension.lowercased() == "asvm" else {
             throw settingsError("Choose an .asvm virtual machine bundle.")
         }
+
         let manifest = try JSONDecoder().decode(
             VMManifest.self, from: Data(contentsOf: url.appendingPathComponent("VM.json")))
         guard manifest.version == 1, !manifest.name.isEmpty else {
             throw settingsError("Unsupported or invalid VM bundle.")
         }
+
         let bundle = VMBundle(url: url, manifest: manifest, mediaCache: mediaCache)
         let settings = try bundle.storedSettings()
         let disk = try bundle.assetURL(settings.diskPath ?? "Disk.img")
@@ -45,6 +52,7 @@ struct VMBundle: Identifiable {
         guard !relativePath.hasPrefix("/"), !relativePath.isEmpty else {
             throw settingsError("VM disk and restore-image paths must be relative to the .asvm bundle.")
         }
+
         let candidate = url.appendingPathComponent(relativePath).standardizedFileURL.resolvingSymlinksInPath()
         guard candidate.path.hasPrefix(url.path + "/") else {
             throw settingsError("An asset path escapes its VM bundle.")
@@ -93,6 +101,7 @@ struct VMBundle: Identifiable {
             guard !(distribution.usesEFI && macIdentity), !(!distribution.usesEFI && linuxIdentity) else {
                 throw settingsError("The startup disk belongs to a different guest family.")
             }
+
             let sourceBundle = Self.enclosingBundle(of: disk)
             let sourceLease = try sourceBundle.map { try VMLease(directory: $0) }
             defer { withExtendedLifetime(sourceLease) {} }

@@ -85,6 +85,7 @@ final class InstallerMediaPopoverController: NSViewController {
                 if reason != nil {
                     remove.image = NSImage(systemSymbolName: "lock.fill", accessibilityDescription: reason)
                 }
+
                 let row = InstallerMediaRowView(labels: labels, button: remove)
                 row.toolTip = entry.relativePath
                 rows.addArrangedSubview(row)
@@ -110,6 +111,7 @@ final class InstallerMediaPopoverController: NSViewController {
         for culture in WindowsCulture.allCases {
             if let url = cache.cached(for: culture.cacheKey) { urls.insert(url) }
         }
+
         let driver = cache.file(digest: InstallerMediaService.windowsDriverImage.sha256, extension: "iso")
         urls.insert(driver)
         return Set(urls.map { $0.standardizedFileURL.resolvingSymlinksInPath() })
@@ -152,12 +154,14 @@ final class InstallerMediaPopoverController: NSViewController {
 
     @objc private func removeMedia(_ sender: NSButton) {
         guard entries.indices.contains(sender.tag) else { return }
+
         let entry = entries[sender.tag]
         guard InstallerMediaInventory.isMedia(entry.url, inside: root), cleanupRestriction(entry) == nil
         else {
             reload()
             return
         }
+
         let alert = NSAlert()
         alert.messageText = "Move this install media to Trash?"
         alert.informativeText = title(for: entry)
@@ -210,6 +214,7 @@ private final class InstallerMediaRowView: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let tracking { removeTrackingArea(tracking) }
+
         let area = NSTrackingArea(
             rect: .zero,
             options: [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect], owner: self, userInfo: nil)
@@ -221,10 +226,12 @@ private final class InstallerMediaRowView: NSView {
         hovered = true
         updateBackground()
     }
+
     override func mouseExited(with event: NSEvent) {
         hovered = false
         updateBackground()
     }
+
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         updateBackground()

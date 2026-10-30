@@ -29,6 +29,7 @@ final class VMLibraryCollectionView: NSCollectionView {
     }
 }
 
+/// Adapts a VM row to native collection selection and reuse without owning registry state.
 @MainActor
 final class VMLibraryCollectionItem: NSCollectionViewItem {
     override var isSelected: Bool { didSet { updateSelection() } }
@@ -41,6 +42,7 @@ final class VMLibraryCollectionItem: NSCollectionViewItem {
 
     func configure(bundle: VMBundle, state: String) {
         for child in view.subviews { child.removeFromSuperview() }
+
         let row = VMLibraryRowView(bundle: bundle, state: state)
         row.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(row)

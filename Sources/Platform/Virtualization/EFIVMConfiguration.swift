@@ -15,6 +15,7 @@ enum EFIVMConfiguration {
         else {
             throw settingsError("Invalid EFI machine identity.")
         }
+
         let installingWindows = bundle.distribution == .windows && resources.bootFromInstaller != false
         let firmwareURL = metadata.appendingPathComponent(
             installingWindows ? "WindowsInstallerEFIVariableStore" : "EFIVariableStore")
@@ -24,9 +25,11 @@ enum EFIVMConfiguration {
         } else {
             firmware = try VZEFIVariableStore(creatingVariableStoreAt: firmwareURL)
         }
+
         let platform = VZGenericPlatformConfiguration()
         platform.machineIdentifier = identity
         if bundle.distribution == .windows { try WindowsBootMedia.enableCPUFeatures(platform) }
+
         let boot = VZEFIBootLoader()
         boot.variableStore = firmware
         let configuration = VZVirtualMachineConfiguration()
@@ -56,10 +59,12 @@ enum EFIVMConfiguration {
             guard let mediaPath = resources.installationMediaPath else {
                 throw settingsError("Select an ARM64 installer ISO.")
             }
+
             let attachment = try VZDiskImageStorageDeviceAttachment(
                 url: URL(fileURLWithPath: mediaPath), readOnly: bundle.distribution != .windows)
             disks.append(VZUSBMassStorageDeviceConfiguration(attachment: attachment))
         }
+
         let startupAttachment = try VZDiskImageStorageDeviceAttachment(url: disk, readOnly: false)
         if bundle.distribution == .windows {
             disks.append(VZNVMExpressControllerDeviceConfiguration(attachment: startupAttachment))
@@ -91,6 +96,7 @@ enum EFIVMConfiguration {
             configuration.memoryBalloonDevices = [VZVirtioTraditionalMemoryBalloonDeviceConfiguration()]
         }
         if #available(macOS 15.0, *) { configuration.usbControllers = [VZXHCIControllerConfiguration()] }
+
         let shares = resources.sharedFolders ?? []
         try VMDiskStore.validateShares(shares)
         if bundle.distribution.isLinux && !shares.isEmpty {

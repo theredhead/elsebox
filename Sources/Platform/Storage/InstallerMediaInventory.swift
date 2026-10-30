@@ -10,6 +10,7 @@ struct CachedInstallerFile {
 enum InstallerMediaInventory {
     static func files(in root: URL, excludingDigests: Set<String> = []) throws -> [CachedInstallerFile] {
         guard FileManager.default.fileExists(atPath: root.path) else { return [] }
+
         let root = root.standardizedFileURL.resolvingSymlinksInPath()
         let keys: Set<URLResourceKey> = [
             .isRegularFileKey, .isSymbolicLinkKey,
@@ -17,6 +18,7 @@ enum InstallerMediaInventory {
         ]
         guard let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: Array(keys))
         else { throw CocoaError(.fileReadUnknown) }
+
         var result: [CachedInstallerFile] = []
         for case let url as URL in files {
             let values = try url.resourceValues(forKeys: keys)
@@ -43,10 +45,12 @@ enum InstallerMediaInventory {
         if downloadable.contains(where: { $0.standardizedFileURL.resolvingSymlinksInPath().path == path }) {
             return true
         }
+
         let parts = entry.relativePath.split(separator: "/")
         guard parts.count == 3, parts[0] == "Windows Bootstrap", parts[2] == "Installer-v1.img",
             parts[1].count == 64, parts[1].allSatisfy({ "0123456789abcdef".contains($0) })
         else { return false }
+
         let source = root.appendingPathComponent(String(parts[1])).appendingPathComponent("Installer.iso")
         return isMedia(source, inside: root) && FileManager.default.isReadableFile(atPath: source.path)
     }
